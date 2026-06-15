@@ -1,0 +1,13 @@
+ticket_id,title,description,resolution,faq_worthy,clarity_score,is_duplicate,notes
+AINS-1,Password Reset Not Working,"User cannot login after requesting password reset. Reset link shows token expired error.","Reset tokens expire after 24h. Issued new link - resolved.",true,8,false,classic FAQ candidate
+AINS-2,VPN Disconnects Every Few Minutes,"VPN drops every 5-10 minutes since last Thursday.","Updated VPN client from v4.2 to v4.6 - resolved.",true,7,false,good candidate needs version detail
+AINS-3,VPN connection drops,"Same as AINS-2, different user.","Updated outdated VPN client.",true,6,true,duplicate of VPN FAQ
+AINS-4,Outlook app stopped syncing,"Outlook on iPhone stuck showing last Wednesday inbox.","Cleared stale auth token, re-added Exchange account.",true,7,false,mobile-specific FAQ
+AINS-5,2FA Code Not Accepted,"Two-factor code rejected despite entering correctly.","Enabled automatic time sync on phone - codes now valid.",true,9,false,excellent FAQ candidate
+AINS-6,Software Install Blocked,"User cannot install Figma due to admin policy.","Reassigned approval, pushed Figma remotely.",false,4,false,too specific - one user
+AINS-7,Printer Showing Offline,"Network printer shows offline despite being powered on.","Cleared print spooler, re-mapped network printer.",true,7,false,good FAQ candidate
+AINS-8,Laptop Extremely Slow,"Laptop very slow after startup since Windows update.","Cleared 30GB temp files, disabled startup apps.",true,6,false,generic but useful
+AINS-9,Teams Notifications Missing,"Microsoft Teams notifications stopped appearing.","Disabled Windows Focus Assist - notifications restored.",true,8,false,clean FAQ
+AINS-10,License Expired Mid-Project,"Adobe license expired during active project.","Applied 7-day emergency extension.",false,3,false,one-off incident
+AINS-11,Cannot access shared drive,"After role change, shared drive not accessible.","IT updated permissions manually.",false,4,false,too specific
+AINS-12,Email not sending externally,"Outbound emails to external domains bouncing.","Domain blacklist issue - IT contacted mail provider.",true,5,false,edge case
