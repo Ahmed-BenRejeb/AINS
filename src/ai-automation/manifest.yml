@@ -1,0 +1,20 @@
+modules:
+  macro:
+    - key: ai-automation-hello-world
+      resource: main
+      resolver:
+        function: resolver
+      title: ai-automation
+      description: Inserts Hello world!
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: static/hello-world/build
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/e91985b6-d1a3-4ba0-a8cf-9b855ec0515d
