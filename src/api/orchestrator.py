@@ -1,5 +1,5 @@
 import sys, os, json, sqlite3, uuid
-from datetime import datetime
+from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models import TicketContext, RetrievalResult, SimilarItem, FAQDraft, PublishingDecision
 from agents.reasoning_agent import ReasoningAgent
