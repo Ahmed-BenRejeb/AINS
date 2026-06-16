@@ -11,3 +11,22 @@ AINS-9,Teams Notifications Missing,"Microsoft Teams notifications stopped appear
 AINS-10,License Expired Mid-Project,"Adobe license expired during active project.","Applied 7-day emergency extension.",false,3,false,one-off incident
 AINS-11,Cannot access shared drive,"After role change, shared drive not accessible.","IT updated permissions manually.",false,4,false,too specific
 AINS-12,Email not sending externally,"Outbound emails to external domains bouncing.","Domain blacklist issue - IT contacted mail provider.",true,5,false,edge case
+AINS-13,Screen Goes Black After Sleep,"Monitor goes black when laptop wakes from sleep. Requires hard restart.","Updated display driver from Device Manager - resolved.",true,8,false,good FAQ
+AINS-14,Cannot Connect to WiFi After Update,"After Windows 11 update, WiFi adapter not detected.","Rolled back network adapter driver - WiFi restored.",true,8,false,good FAQ
+AINS-15,Zoom Audio Not Working,"Microphone not detected in Zoom meetings, works in other apps.","Set Zoom audio input to correct device in settings.",true,9,false,excellent FAQ
+AINS-16,Files Not Syncing to OneDrive,"OneDrive stuck at syncing, files not uploading since Monday.","Signed out and back into OneDrive, cleared cache.",true,7,false,good candidate
+AINS-17,Browser Saved Passwords Gone,"All saved passwords disappeared after Chrome update.","Passwords were in old profile - merged via chrome://settings/passwords.",true,6,false,edge case
+AINS-18,John's Laptop Reimaged Per Request,"User requested full reimage before leaving company.","Reimaged and wiped per offboarding checklist.",false,2,false,offboarding action not a FAQ
+AINS-19,Emergency DB Access for CEO,"CEO needed immediate read access to prod DB for board meeting.","Granted temporary access, revoked after 2 hours.",false,2,false,one-off privileged action
+AINS-20,HR Tool Access for New Hire Batch,"15 new hires need BambooHR access provisioned.","Bulk provisioned via admin panel.",false,3,false,batch admin task not generalizable
+AINS-21,VPN Drops on Windows 11,"VPN keeps disconnecting after upgrading to Windows 11.","Updated VPN client to latest version.",true,6,true,duplicate of AINS-2 VPN FAQ
+AINS-22,Password Reset Link Expired,"Reset link sent but expired before user clicked it.","Resent link - user must click within 24h.",true,7,true,duplicate of AINS-1
+AINS-23,Outlook Not Syncing on Android,"Outlook on Android not showing new emails.","Removed and re-added account in Outlook app.",true,6,true,duplicate of AINS-4 variant
+AINS-24,Teams Status Stuck on Away,"Teams shows Away status even when actively using laptop.","Disabled battery saver mode - status now updates correctly.",true,8,false,clean FAQ
+AINS-25,Printer Driver Install Fails,"Cannot install printer driver, installer crashes at 40%.","Ran installer as administrator - completed successfully.",true,7,false,good FAQ
+AINS-26,App Crashes After macOS Update,"Slack crashes immediately after macOS Ventura update.","Cleared app cache at ~/Library/Application Support/Slack.",true,7,false,good FAQ
+AINS-27,SharePoint Permission Denied,"User gets 403 error accessing SharePoint site.","Site owner added user to correct SharePoint group.",false,4,false,too specific - manual permission grant
+AINS-28,Excel File Opens Read-Only,"Excel file on shared drive always opens as read-only.","Previous user left file open - closing their session fixed it.",true,5,false,edge case - partially generalizable
+AINS-29,Email Signature Disappeared,"Email signature missing after Outlook profile migration.","Re-added signature manually from backup.",true,4,false,edge case - thin resolution
+AINS-30,2FA App Lost After Phone Change,"User got new phone, lost 2FA codes, locked out.","Reset 2FA via admin panel, user re-enrolled with new phone.",true,8,false,important FAQ - common scenario
+AINS-31,Shared Calendar Not Showing in Outlook,"User reports that a shared team calendar accepted via invite is not visible in Outlook desktop. Works fine in Outlook Web Access.","IT re-sent the sharing invitation. User accepted again and calendar appeared after restarting Outlook. Root cause unclear.",true,5,false,edge case - unclear root cause

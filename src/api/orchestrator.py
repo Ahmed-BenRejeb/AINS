@@ -1,5 +1,5 @@
 import sys, os, json, sqlite3, uuid
-from datetime import datetime
+from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models import TicketContext, RetrievalResult, SimilarItem, FAQDraft, PublishingDecision
 from agents.reasoning_agent import ReasoningAgent
@@ -22,7 +22,7 @@ def init_db():
 
 def log_trace(conn, run_id, step, input_data, output_data, latency_ms):
     conn.execute("INSERT INTO traces VALUES (?,?,?,?,?,?)", (
-        run_id, step, datetime.utcnow().isoformat(),
+        run_id, step, datetime.now(timezone.utc).isoformat(),
         json.dumps(input_data), json.dumps(output_data), latency_ms
     ))
     conn.commit()
@@ -67,6 +67,7 @@ def run_pipeline(ticket_id: str):
     elif decision.action == "draft_review":
         html = f"<h2>Problem</h2><p>{draft.problem_statement}</p><h2>Root Cause</h2><p>{draft.root_cause}</p><h2>Solution</h2><ol>{''.join(f'<li>{s}</li>' for s in draft.solution_steps)}</ol>"
         url = confluence.create_draft(ticket.title, html)
+        decision.confluence_page_url = url
         jira.post_comment(ticket_id, f"FAQ draft created for review (score {draft.clarity_score}/10): {url}")
         print(f"📝 Draft created: {url}")
     elif decision.action == "reject":
