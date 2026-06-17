@@ -60,10 +60,13 @@ def run_pipeline(ticket_id: str):
     # Step 5: Execute
     if decision.action == "auto_publish":
         html = f"<h2>Problem</h2><p>{draft.problem_statement}</p><h2>Root Cause</h2><p>{draft.root_cause}</p><h2>Solution</h2><ol>{''.join(f'<li>{s}</li>' for s in draft.solution_steps)}</ol>"
-        url = confluence.create_page(ticket.title, html)
+        already_exists, url = confluence.create_page(ticket.title, html)
         jira.post_comment(ticket_id, f"FAQ auto-published: {url}")
         decision.confluence_page_url = url
-        print(f"✅ Auto-published: {url}")
+        if already_exists:
+            print(f"📋 FAQ already exists: {url}")
+        else:
+            print(f"✅ Auto-published: {url}")
     elif decision.action == "draft_review":
         html = f"<h2>Problem</h2><p>{draft.problem_statement}</p><h2>Root Cause</h2><p>{draft.root_cause}</p><h2>Solution</h2><ol>{''.join(f'<li>{s}</li>' for s in draft.solution_steps)}</ol>"
         url = confluence.create_draft(ticket.title, html)
@@ -80,6 +83,29 @@ def run_pipeline(ticket_id: str):
     log_trace(conn, run_id, "execute", decision.model_dump(), {"done": True}, 0)
     print(f"\nRun ID: {run_id}")
     return run_id
+
+def get_trace(run_id: str):
+    conn = init_db()
+    cursor = conn.execute("SELECT * FROM traces WHERE run_id = ? ORDER BY timestamp", (run_id,))
+    rows = cursor.fetchall()
+    if not rows:
+        return None
+    return [
+        {
+            "step": row[1],
+            "timestamp": row[2],
+            "input_json": json.loads(row[3]),
+            "output_json": json.loads(row[4]),
+            "latency_ms": row[5]
+        }
+        for row in rows
+    ]
+
+def list_runs(limit: int = 50):
+    conn = init_db()
+    cursor = conn.execute("SELECT DISTINCT run_id FROM traces ORDER BY run_id DESC LIMIT ?", (limit,))
+    rows = cursor.fetchall()
+    return [row[0] for row in rows]
 
 if __name__ == "__main__":
     import sys

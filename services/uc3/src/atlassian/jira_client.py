@@ -37,7 +37,7 @@ class JiraClient:
     def get_ticket(self, ticket_id: str) -> TicketContext:
         url = f"{self.base_url}/rest/api/3/issue/{ticket_id}"
         try:
-            r = requests.get(url, auth=self.auth)
+            r = requests.get(url, auth=self.auth, timeout=10)
             r.raise_for_status()
             data = r.json()
             fields = data["fields"]
@@ -49,6 +49,12 @@ class JiraClient:
                 assignee=fields.get("assignee", {}).get("displayName", "unassigned") if fields.get("assignee") else "unassigned",
                 labels=fields.get("labels", [])
             )
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            ticket = _load_from_csv(ticket_id)
+            if ticket:
+                print(f"[JiraClient] Jira unreachable ({type(e).__name__}) — loaded from local CSV")
+                return ticket
+            raise
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 404:
                 ticket = _load_from_csv(ticket_id)
@@ -61,7 +67,7 @@ class JiraClient:
         url = f"{self.base_url}/rest/api/3/issue/{ticket_id}/comment"
         payload = {"body": {"type": "doc", "version": 1, "content": [{"type": "paragraph", "content": [{"type": "text", "text": body}]}]}}
         try:
-            requests.post(url, json=payload, auth=self.auth)
+            requests.post(url, json=payload, auth=self.auth, timeout=10)
         except Exception:
             print(f"[JiraClient] Could not post comment to {ticket_id} (not in Jira)")
 
