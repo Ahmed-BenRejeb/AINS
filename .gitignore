@@ -71,13 +71,3 @@ scripts/output/
 *.key
 *.cert
 secrets/
-
-# ── Agent context files — kept local, not committed ──────────────────────────
-CLAUDE.md
-AGENTS.md
-**/CLAUDE.md
-**/AGENTS.md
-
-# ── Docs — keep full files local, commit only 20-line *.preview.md stubs ──────
-docs/*.md
-!docs/*.preview.md
