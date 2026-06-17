@@ -1,0 +1,58 @@
+# wrangler.toml — Cloudflare resource configuration for Sentinel
+# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
+
+name       = "sentinel"
+main       = "worker/index.ts"
+compatibility_date = "2024-09-23"
+
+# ── D1 — Trace metadata + verdicts (SQLite) ──────────────────────────────────
+[[d1_databases]]
+binding      = "SENTINEL_DB"
+database_name = "sentinel-traces"
+database_id  = ""   # fill in after: wrangler d1 create sentinel-traces
+
+# ── R2 — Trace blobs + cassettes (object storage) ────────────────────────────
+[[r2_buckets]]
+binding     = "SENTINEL_R2"
+bucket_name = "sentinel-cassettes"
+
+# ── Vectorize — Embeddings for incidents + runbooks ──────────────────────────
+[[vectorize]]
+binding        = "SENTINEL_VECTORIZE"
+index_name     = "sentinel-embeddings"
+
+# ── Queues — Async evaluation jobs ───────────────────────────────────────────
+[[queues.producers]]
+binding    = "EVAL_QUEUE"
+queue      = "sentinel-eval-queue"
+
+[[queues.consumers]]
+queue              = "sentinel-eval-queue"
+max_batch_size     = 10
+max_batch_timeout  = 30
+
+# ── AI — Serverless model inference ──────────────────────────────────────────
+[ai]
+binding = "AI"
+# Models used:
+#   @cf/meta/llama-guard-3-8b          — safety pre-filter
+#   @cf/baai/bge-base-en-v1.5          — text embeddings (768-dim)
+#   @cf/meta/llama-3.3-70b-instruct-fp8-fast  — cheap rubric scoring
+
+# ── Environment variables ─────────────────────────────────────────────────────
+[vars]
+ENVIRONMENT = "production"
+LOG_LEVEL   = "INFO"
+
+# Secrets (set via: wrangler secret put <NAME>)
+# ANTHROPIC_API_KEY
+# AUDIT_HMAC_KEY
+# FORGE_REMOTE_SECRET
+
+# ── Development environment ───────────────────────────────────────────────────
+[env.development]
+name = "sentinel-dev"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+LOG_LEVEL   = "DEBUG"

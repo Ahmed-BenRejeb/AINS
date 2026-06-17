@@ -1,0 +1,83 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.uv/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Node / TypeScript ─────────────────────────────────────────────────────────
+node_modules/
+.next/
+.nuxt/
+dist/
+*.tsbuildinfo
+.pnpm-store/
+
+# ── Databases — NEVER COMMIT THESE ───────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+traces.db
+
+# ── Environment — NEVER COMMIT THESE ─────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+packages/atlassian-agent/.env
+
+# ── Cloudflare / Wrangler ─────────────────────────────────────────────────────
+.wrangler/
+.dev.vars
+
+# ── Forge ─────────────────────────────────────────────────────────────────────
+packages/atlassian-agent/.forge/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+*.log.*
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# ── Large / generated data ────────────────────────────────────────────────────
+# Cassettes (recorded traces) are stored in Cloudflare R2, not in git
+packages/flight-recorder/cassettes/
+# Synthetic seed data output
+scripts/output/
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+*.pem
+*.key
+*.cert
+secrets/
+
+# ── Agent context files — kept local, not committed ──────────────────────────
+CLAUDE.md
+AGENTS.md
+**/CLAUDE.md
+**/AGENTS.md
+
+# ── Docs — keep full files local, commit only 20-line *.preview.md stubs ──────
+docs/*.md
+!docs/*.preview.md
