@@ -384,13 +384,19 @@ chore(infra): update wrangler.toml with D1 database ID
 | Phase | Status | Notes |
 |---|---|---|
 | Phase 0 — Foundation | ✅ Done | Azure VM, Langfuse, xqdrant, D1, Vectorize, MinIO, Atlassian, 100 incidents seeded |
+| Foundation — `trace-core` | ✅ Done | Shared contract complete: constants, Pydantic v2 schemas, hash_utils, OTel GenAI span helpers, schema.ts mirror. `make test-core` green (19 tests); ruff/black/isort/mypy --strict clean on the package |
 | Phase 1 — UC2 Flight Recorder | ⬜ Not started | Start with httpx transport override |
 | Phase 2 — UC1 Eval Engine | ⬜ Not started | Start with code grader |
 | Phase 3 — UC3 Atlassian Agent | ⬜ Not started | Start after trace-core is done |
 | Phase 4 — Integration | ⬜ Not started | |
 | Phase 5 — Differentiators | ⬜ Not started | |
 
-**⚡ Next task: `packages/trace-core/src/schema.py`** — Pydantic models for TraceRecord, EvalVerdict, AuditBlock. Everything else imports from here.
+**⚡ Next task: Phase 1 — `packages/flight-recorder`** — start with the httpx transport override (record mode). Import shared types via `from trace_core import TraceRecord, RunManifest, AuditBlock` and reuse `normalize_request` / `hash_step_key` for cassette keys — do not redefine them.
+
+> **trace-core build notes (18 Jun 2026):**
+> - **Layout:** standard src-layout — the importable package is `packages/trace-core/src/trace_core/`, imported as `from trace_core import ...`. No `sentinel.` namespace prefix (it added repetition with the repo name and a nesting level for no benefit). Future Python packages follow the same shape: `packages/<pkg>/src/<pkg>/`, imported as `from <pkg> import ...`.
+> - **Workspace:** a root `pyproject.toml` now defines the uv workspace (`make setup` → `uv sync --all-packages`) and the shared tooling config (pytest, mypy --strict + pydantic plugin, ruff, black, isort). Add future Python packages to `[tool.uv.workspace] members`.
+> - **`make check` is not yet green repo-wide** — blocked only by items outside trace-core: pre-existing lint errors in `scripts/seed_atlassian.py` + `scripts/run_synthetic_eval.py`, and the TS packages (`atlassian-agent`, `dashboard`) which have no `package.json` yet (Phase 3). trace-core itself passes ruff/black/isort/mypy/pytest.
 
 ---
 
@@ -408,4 +414,4 @@ chore(infra): update wrangler.toml with D1 database ID
 
 ---
 
-*Last updated: 18 June 2026 by Ahmed Saad; Phase 0 complete, starting Phase 1*
+*Last updated: 18 June 2026 by Ahmed Saad; Phase 0 + trace-core foundation complete, starting Phase 1*

@@ -12,17 +12,26 @@ This package has **no business logic** — only schemas, types, and serializatio
 
 ```
 trace-core/
+├── pyproject.toml          ← uv/hatchling package; deps: pydantic, opentelemetry-sdk
 ├── src/
-│   ├── schema.py           ← Python Pydantic models (TraceRecord, RunManifest, EvalVerdict, ...)
-│   ├── schema.ts           ← TypeScript types mirroring the Python models (for dashboard + Forge)
-│   ├── otel.py             ← OTel GenAI span helpers (emit_llm_call_span, emit_tool_call_span)
-│   ├── hash_utils.py       ← Canonical hash functions (normalize_request, hash_step_key)
-│   └── constants.py        ← Shared constants (PASS_AT_K_TRIALS, CONFIDENCE_THRESHOLD, ...)
+│   └── trace_core/         ← the importable package: `from trace_core import ...`
+│       ├── __init__.py     ← clean re-exports (everything importable from the top level)
+│       ├── schema.py       ← Python Pydantic models (TraceRecord, RunManifest, EvalVerdict, ...)
+│       ├── schema.ts       ← TypeScript types mirroring the Python models (dashboard + Forge)
+│       ├── otel.py         ← OTel GenAI span helpers (emit_llm_call_span, emit_tool_call_span)
+│       ├── hash_utils.py   ← Canonical hash functions (normalize_request, hash_step_key)
+│       ├── constants.py    ← Shared constants (PASS_AT_K_TRIALS, CONFIDENCE_THRESHOLD, ...)
+│       └── py.typed        ← PEP 561 marker so importers get our type hints
 └── tests/
     ├── test_schema.py
     ├── test_otel.py
     └── test_hash_utils.py
 ```
+
+> **Layout:** standard src-layout. The package is imported as `from trace_core import TraceRecord`
+> — there is no `sentinel.` namespace prefix. Tooling config (mypy --strict, ruff, black, isort,
+> pytest) lives in the **root** `pyproject.toml`; this package's `pyproject.toml` only declares the
+> build + dependencies.
 
 ## Critical Rules for This Package
 
@@ -63,7 +72,9 @@ class EvalVerdict(BaseModel):
 ## Commands
 
 ```bash
-make test-core      # run tests for this package
-cd packages/trace-core && uv run pytest tests/ -v
-cd packages/trace-core && uv run mypy src/
+# Run from the repo root so the root pyproject's strict tooling config applies:
+make test-core                              # pytest for this package (via Makefile)
+uv run pytest packages/trace-core/tests/ -v
+uv run mypy packages/trace-core             # mypy --strict (config in root pyproject.toml)
+uv run ruff check packages/trace-core
 ```

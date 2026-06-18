@@ -1,0 +1,71 @@
+# pyproject.toml — Sentinel monorepo root (uv workspace)
+# This is a virtual workspace root: it is NOT itself a installable package.
+# It exists to (a) define the uv workspace members and (b) hold the shared
+# tooling configuration (pytest, mypy, ruff, black, isort) for all packages.
+#
+# `make setup` runs `uv sync --all-packages`, which installs every workspace
+# member (currently just trace-core) in editable mode into a single .venv.
+
+[project]
+name = "sentinel"
+version = "0.0.0"
+description = "Sentinel — AI Agent Reliability Platform (monorepo workspace root)."
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false  # the root is a virtual workspace, never built or published
+
+[tool.uv.workspace]
+# Only trace-core has a pyproject.toml so far. Add other packages here as they
+# gain one (flight-recorder, eval-engine, atlassian-remote).
+members = ["packages/trace-core"]
+
+[tool.uv.sources]
+trace-core = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "mypy>=1.11",
+    "ruff>=0.6",
+    "black>=24.0",
+    "isort>=5.13",
+]
+
+# ─── Shared tooling config ─────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+testpaths = ["packages", "tests"]
+addopts = "--tb=short"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+# src-layout packages live at packages/<pkg>/src/<pkg>. explicit_package_bases +
+# mypy_path make mypy map packages/trace-core/src/trace_core/x.py to the module
+# `trace_core.x` — the same name the editable install exposes — so a file checked
+# by path and resolved by import is not reported twice.
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "packages/trace-core/src"
+# opentelemetry ships partial type info; the Makefile also passes
+# --ignore-missing-imports for the cross-package run.
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
