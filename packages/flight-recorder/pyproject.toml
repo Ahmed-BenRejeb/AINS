@@ -1,0 +1,30 @@
+# pyproject.toml — flight-recorder (UC2)
+# The HTTP-proxy flight recorder: record/replay/bisect for agent LLM + tool calls.
+# Imports shared types and hash helpers from trace-core — never redefines them.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flight-recorder"
+version = "0.1.0"
+description = "Sentinel UC2: deterministic record/replay flight recorder for AI agents."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Team Selecao" }]
+
+dependencies = [
+    "trace-core",            # shared schemas, constants, and hash helpers (workspace)
+    "pydantic>=2.0",         # ReplayResult / BisectResult structured outputs
+    "httpx>=0.27",           # transport override that intercepts CF Workers AI calls
+    "boto3>=1.34",           # MinIO (S3-compatible) cassette blob storage
+    "fastapi>=0.110",        # the run/replay/bisect API on port 8001
+    "uvicorn>=0.29",         # ASGI server for api.py
+]
+
+# Standard src-layout: the importable package lives at src/flight_recorder/, so the
+# whole platform does `from flight_recorder.proxy.cassette import ...`. Hatchling
+# maps src/flight_recorder -> flight_recorder in the wheel (and editable installs).
+[tool.hatch.build.targets.wheel]
+packages = ["src/flight_recorder"]

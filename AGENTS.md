@@ -212,7 +212,7 @@ s3 = boto3.client(
 |---|---|
 | Phase 0 — Foundation | ✅ Complete |
 | Foundation — `trace-core` | ✅ Complete |
-| Phase 1 — UC2 Flight Recorder | ⬜ Not started |
+| Phase 1 — UC2 Flight Recorder | 🟦 In progress |
 | Phase 2 — UC1 Eval Engine | ⬜ Not started |
 | Phase 3 — UC3 Atlassian Agent | ⬜ Not started |
 | Phase 4 — Integration | ⬜ Not started |
@@ -230,7 +230,14 @@ green (19 tests); ruff/black/isort/mypy --strict pass on the package.
 - **Repo-wide `make check` is not yet green** — blocked only by out-of-scope items:
   pre-existing `scripts/` lint errors and the TS packages (no `package.json` yet, Phase 3).
 
-**⚡ Next: Phase 1 — `packages/flight-recorder` (httpx transport override, record mode)**
+**⚡ flight-recorder core is built** — `packages/flight-recorder/src/flight_recorder/`
+(src-layout, imported as `from flight_recorder.proxy.cassette import ...`; `api.py` at the
+package root runs on port 8001). Cassette + `RecordingTransport` (record/replay/passthrough,
+`FLIGHT_MODE`-driven) + `@record_tool` + hash-chained HMAC audit + D1/MinIO clients + replay
+and bisect engines, all reusing `trace_core.normalize_request`/`hash_step_key`. `make test-uc2`
+is green (27 tests, 88% cov); ruff/black/isort/mypy --strict pass on the package.
+
+**⚡ Next: finish UC2 integration glue + start Phase 2 — UC1 Eval Engine.**
 
 ---
 

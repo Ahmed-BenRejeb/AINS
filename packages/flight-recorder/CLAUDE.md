@@ -11,25 +11,31 @@ and enables deterministic replay without touching live APIs.
 
 ## Key Files
 
+> **Layout:** standard src-layout — the importable package is
+> `src/flight_recorder/`, imported as `from flight_recorder.proxy.cassette import ...`
+> (repo convention; on-disk path == import path keeps `mypy --strict` clean). `api.py`
+> lives at the package root and is run with `uvicorn api:app --port 8001`.
+
 ```
 flight-recorder/
-├── src/
+├── api.py                        FastAPI server (port 8001): /runs /replay /bisect /health
+├── pyproject.toml                hatchling package; deps: trace-core, httpx, boto3, fastapi
+├── src/flight_recorder/
+│   ├── config.py                 FLIGHT_MODE resolution, CF-URL detection, genesis hash
+│   ├── exceptions.py             CassetteMissError (replay never falls back to a live call)
 │   ├── proxy/
-│   │   ├── llm_proxy.py          httpx transport override — intercepts CF Workers AI calls
-│   │   ├── mcp_interceptor.py    decorator-based tool call interceptor
-│   │   └── cassette.py           cassette read/write + request normalization
+│   │   ├── llm_proxy.py          RecordingTransport — httpx transport, intercepts CF AI calls
+│   │   ├── mcp_interceptor.py    @record_tool decorator — tool/function call interceptor
+│   │   └── cassette.py           cassette read/write + request normalization (reuses trace_core)
 │   ├── replay/
-│   │   ├── engine.py             replay orchestrator
-│   │   └── bisect.py             find first diverging step between two runs
+│   │   ├── engine.py             replay_run() — re-executes with replay transport, 0 live calls
+│   │   └── bisect.py             bisect_runs() — first diverging step between two runs
 │   ├── storage/
-│   │   ├── d1_client.py          trace metadata → Cloudflare D1
-│   │   └── minio_client.py       trace blobs → MinIO (NOT R2)
+│   │   ├── d1_client.py          trace metadata → Cloudflare D1 REST API
+│   │   └── minio_client.py       cassette blobs → MinIO (NOT R2)
 │   └── audit/
 │       └── hash_chain.py         write_audit_record() — hash-chained HMAC receipts
-└── tests/
-    ├── unit/
-    ├── integration/
-    └── fixtures/                 pre-recorded cassettes for deterministic tests
+└── tests/                        test_cassette/llm_proxy/hash_chain/replay/mcp_interceptor/bisect
 ```
 
 ## Blob Storage — MinIO (NOT Cloudflare R2)
@@ -111,8 +117,23 @@ def write_audit_record(step_id, kind, input_data, output_data, prev_hash):
 ## Commands
 
 ```bash
-make test-uc2
-FLIGHT_MODE=record uv run python -m sentinel.flight_recorder.record --agent my_agent
-FLIGHT_MODE=replay uv run python -m sentinel.flight_recorder.replay --run-id <uuid>
-FLIGHT_MODE=replay uv run python -m sentinel.flight_recorder.bisect --good <uuid> --bad <uuid>
+make test-uc2                                      # pytest + coverage for this package
+uv run mypy packages/flight-recorder               # mypy --strict (config in root pyproject)
+uv run ruff check packages/flight-recorder
+FLIGHT_MODE=replay uv run uvicorn api:app --port 8001   # run the API (from this dir)
+```
+
+Programmatic usage (record then replay, asserting zero live calls):
+
+```python
+import httpx
+from flight_recorder import RecordingTransport, replay_run
+
+run_id = "..."
+# record: drive the agent with a recording client
+client = httpx.Client(transport=RecordingTransport(run_id, mode="record"))
+agent(client)            # every CF Workers AI call is taped into the cassette
+# replay: re-run against the cassette — RecordingTransport(mode="replay")
+result = replay_run(run_id, agent)
+assert result.live_call_count == 0
 ```
