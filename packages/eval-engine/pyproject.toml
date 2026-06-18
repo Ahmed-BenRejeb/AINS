@@ -1,0 +1,30 @@
+# pyproject.toml — eval-engine (UC1)
+# Continuous evaluation: safety pre-filter → code grader → calibrated LLM judge,
+# failure attribution, pass^k, and verdict reporting (files Jira issues on failure).
+# All LLM calls go through Cloudflare Workers AI; shared schemas come from trace-core.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "eval-engine"
+version = "0.1.0"
+description = "Sentinel UC1: continuous evaluation, LLM-as-judge, failure attribution, pass^k."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Team Selecao" }]
+
+dependencies = [
+    "trace-core",            # EvalVerdict, TraceRecord, DimensionScore, constants (workspace)
+    "pydantic>=2.0",         # all grader result models
+    "httpx>=0.27",           # CF Workers AI + Atlassian REST calls
+    "fastapi>=0.110",        # the evaluate/batch API on port 8000
+    "uvicorn>=0.29",         # ASGI server for api.py
+]
+
+# Standard src-layout: importable package at src/eval_engine/, imported as
+# `from eval_engine.graders.code_grader import ...`. Hatchling maps
+# src/eval_engine -> eval_engine in the wheel (and editable installs).
+[tool.hatch.build.targets.wheel]
+packages = ["src/eval_engine"]

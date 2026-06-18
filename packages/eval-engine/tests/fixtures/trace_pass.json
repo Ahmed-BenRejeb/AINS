@@ -1,0 +1,55 @@
+[
+  {
+    "run_id": "run-pass-0001",
+    "step_id": "11111111111111111111111111111111",
+    "sequence": 0,
+    "timestamp": "2026-06-18T10:00:00+00:00",
+    "kind": "llm_call",
+    "input": {
+      "messages": [{"role": "user", "content": "incident: disk full on node-7"}]
+    },
+    "output": {
+      "response": "Plan: search similar incidents, then create the Jira issue.",
+      "usage": {"total_tokens": 120}
+    },
+    "metadata": {"model_id": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "latency_ms": 410.0},
+    "audit": {
+      "prev_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "payload_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "hmac": "aaaa1111"
+    }
+  },
+  {
+    "run_id": "run-pass-0001",
+    "step_id": "22222222222222222222222222222222",
+    "sequence": 1,
+    "timestamp": "2026-06-18T10:00:01+00:00",
+    "kind": "tool_call",
+    "input": {"tool": "vector_search", "arguments": {"query": "disk full", "k": 5}},
+    "output": {"results": [{"id": "INC-12", "score": 0.83}], "success": true},
+    "metadata": {"tool_name": "vector_search", "tool_version": "1.0", "latency_ms": 88.0},
+    "audit": {
+      "prev_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "payload_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "hmac": "bbbb2222"
+    }
+  },
+  {
+    "run_id": "run-pass-0001",
+    "step_id": "33333333333333333333333333333333",
+    "sequence": 2,
+    "timestamp": "2026-06-18T10:00:02+00:00",
+    "kind": "tool_call",
+    "input": {
+      "tool": "create_jira_issue",
+      "arguments": {"project": "AO", "summary": "Disk full on node-7"}
+    },
+    "output": {"key": "AO-321", "id": "10456", "success": true},
+    "metadata": {"tool_name": "create_jira_issue", "tool_version": "2.1", "latency_ms": 250.0},
+    "audit": {
+      "prev_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "payload_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "hmac": "cccc3333"
+    }
+  }
+]

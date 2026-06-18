@@ -17,19 +17,20 @@ dependencies = []
 package = false  # the root is a virtual workspace, never built or published
 
 [tool.uv.workspace]
-# Add other packages here as they gain a pyproject.toml
-# (eval-engine, atlassian-remote).
-members = ["packages/trace-core", "packages/flight-recorder"]
+# Add other packages here as they gain a pyproject.toml (atlassian-remote).
+members = ["packages/trace-core", "packages/flight-recorder", "packages/eval-engine"]
 
 [tool.uv.sources]
 trace-core = { workspace = true }
 flight-recorder = { workspace = true }
+eval-engine = { workspace = true }
 
 [dependency-groups]
 dev = [
     "pytest>=8.0",
-    "pytest-cov>=5.0",        # `make test-uc2` runs pytest with --cov
+    "pytest-cov>=5.0",        # `make test-uc1`/`test-uc2` run pytest with --cov
     "pytest-httpx>=0.30",     # mock every HTTP call in flight-recorder tests
+    "pytest-asyncio>=0.23",   # eval-engine graders are async (cf_ai_client)
     "mypy>=1.11",
     "ruff>=0.6",
     "black>=24.0",
@@ -41,6 +42,8 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["packages", "tests"]
 addopts = "--tb=short"
+# eval-engine grader tests are async; run them without a per-test marker.
+asyncio_mode = "auto"
 
 [tool.mypy]
 python_version = "3.11"
@@ -54,7 +57,11 @@ namespace_packages = true
 explicit_package_bases = true
 # Each src-layout package's src dir is on the path so files checked by path map to
 # the same module name the editable install exposes (no duplicate-module errors).
-mypy_path = ["packages/trace-core/src", "packages/flight-recorder/src"]
+mypy_path = [
+    "packages/trace-core/src",
+    "packages/flight-recorder/src",
+    "packages/eval-engine/src",
+]
 # opentelemetry ships partial type info; the Makefile also passes
 # --ignore-missing-imports for the cross-package run.
 warn_unused_ignores = true

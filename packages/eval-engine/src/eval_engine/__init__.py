@@ -1,0 +1,32 @@
+"""Sentinel eval engine (UC1).
+
+Consumes recorded agent traces and produces auditable :class:`trace_core.EvalVerdict`
+objects: a safety pre-filter, a fast deterministic code grader, and a calibrated
+LLM-as-judge (position-bias calibration is mandatory), plus DAG failure
+attribution, ``pass^k``, and Jira issue reporting on failure.
+
+All LLM calls go through Cloudflare Workers AI (`cf_ai_client`); shared schemas
+come from ``trace_core`` and are never redefined here.
+"""
+
+from __future__ import annotations
+
+from .graders import code_grader
+from .graders.llm_judge import calibrated_judge, judge
+from .graders.safety_filter import check_safety
+from .metrics.pass_at_k import consistency_rate, pass_at_k
+from .models import CodeGraderResult, JudgeVerdict, SafetyResult
+from .verdicts.reporter import evaluate_run
+
+__all__ = [
+    "CodeGraderResult",
+    "JudgeVerdict",
+    "SafetyResult",
+    "calibrated_judge",
+    "check_safety",
+    "code_grader",
+    "consistency_rate",
+    "evaluate_run",
+    "judge",
+    "pass_at_k",
+]
