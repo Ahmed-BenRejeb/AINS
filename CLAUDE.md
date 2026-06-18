@@ -385,13 +385,20 @@ chore(infra): update wrangler.toml with D1 database ID
 |---|---|---|
 | Phase 0 — Foundation | ✅ Done | Azure VM, Langfuse, xqdrant, D1, Vectorize, MinIO, Atlassian, 100 incidents seeded |
 | Foundation — `trace-core` | ✅ Done | Shared contract complete: constants, Pydantic v2 schemas, hash_utils, OTel GenAI span helpers, schema.ts mirror. `make test-core` green (19 tests); ruff/black/isort/mypy --strict clean on the package |
-| Phase 1 — UC2 Flight Recorder | ⬜ Not started | Start with httpx transport override |
+| Phase 1 — UC2 Flight Recorder | 🟦 In progress | Core built: cassette, RecordingTransport (record/replay/passthrough), @record_tool, hash-chain audit, D1/MinIO clients, replay + bisect, FastAPI on 8001. `make test-uc2` green (27 tests, 88% cov); ruff/black/isort/mypy --strict clean on the package |
 | Phase 2 — UC1 Eval Engine | ⬜ Not started | Start with code grader |
 | Phase 3 — UC3 Atlassian Agent | ⬜ Not started | Start after trace-core is done |
 | Phase 4 — Integration | ⬜ Not started | |
 | Phase 5 — Differentiators | ⬜ Not started | |
 
-**⚡ Next task: Phase 1 — `packages/flight-recorder`** — start with the httpx transport override (record mode). Import shared types via `from trace_core import TraceRecord, RunManifest, AuditBlock` and reuse `normalize_request` / `hash_step_key` for cassette keys — do not redefine them.
+**⚡ Next task: finish Phase 1 wiring + start Phase 2 — UC1 Eval Engine.** The flight-recorder core is in place; remaining UC2 work is integration glue (record a real UC3 agent run end-to-end against live MinIO/D1, write `run_manifests` rows) and a `record`/`replay`/`bisect` CLI. Reuse `normalize_request` / `hash_step_key` from `trace_core` for cassette keys — do not redefine them.
+
+> **flight-recorder build notes (18 Jun 2026):**
+> - **Layout:** follows the repo convention `packages/flight-recorder/src/flight_recorder/` (importable as `from flight_recorder.proxy.cassette import ...`), so on-disk path == import path and `mypy --strict` stays clean. The task's `src/proxy/...` paths map to `src/flight_recorder/proxy/...`. `api.py` is at the package root (run `uvicorn api:app --port 8001`).
+> - **`FLIGHT_MODE`** is resolved once in `flight_recorder.config.resolve_mode()` and threaded through `RecordingTransport` and `@record_tool`; default is `record`.
+> - **Env vars:** new code uses `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` (per §10 gotcha), plus `CF_D1_DATABASE_ID`, `AUDIT_HMAC_KEY`, and the `BLOB_STORAGE_*` set. `.env.example` still lists the older `CF_*` names — reconcile when wiring live.
+> - **Storage is mockable:** `storage.minio_client.{store,load}_blob` and `storage.d1_client.insert/query` are module-level functions tests monkeypatch, so the whole record/replay loop runs with zero network. All HTTP in tests is mocked via `pytest-httpx`.
+> - **Workspace:** added `packages/flight-recorder` to `[tool.uv.workspace] members`; added `pytest-httpx` + `pytest-cov` to the dev group; added a mypy override ignoring missing stubs for `boto3`/`botocore`/`uvicorn`/`mypy_boto3_s3`.
 
 > **trace-core build notes (18 Jun 2026):**
 > - **Layout:** standard src-layout — the importable package is `packages/trace-core/src/trace_core/`, imported as `from trace_core import ...`. No `sentinel.` namespace prefix (it added repetition with the repo name and a nesting level for no benefit). Future Python packages follow the same shape: `packages/<pkg>/src/<pkg>/`, imported as `from <pkg> import ...`.
