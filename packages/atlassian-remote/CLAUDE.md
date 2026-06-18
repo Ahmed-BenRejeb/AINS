@@ -1,150 +1,127 @@
 # atlassian-remote / CLAUDE.md
 
-> Read the root `CLAUDE.md` first. This file adds package-specific context.
+> Read the root `CLAUDE.md` first, especially Section 0 (deployed infrastructure).
+> This package runs on the Azure VM at port 8080, exposed at `remote.ahmedxsaad.me`.
 
 ## What This Package Does
 
-**UC3: The Forge Remote backend.** Runs on the Azure VM. Handles all heavy compute that can't run inside Forge's sandbox: text embedding via Cloudflare Workers AI, vector search via Cloudflare Vectorize, and LLM reasoning via the Anthropic API (Claude). Called exclusively from `atlassian-agent` via Forge Remote HTTP.
+**UC3: The Forge Remote backend.**
+Heavy compute that can't run in Forge's sandbox: text embedding, xqdrant vector search,
+and LLM-powered RCA generation. Called exclusively by `atlassian-agent` via Forge Remote HTTP.
 
 ## Key Files
 
 ```
 atlassian-remote/
 ├── pyproject.toml
-├── api.py                  ← FastAPI server — the entry point called by Forge
+├── api.py                    FastAPI server — entry point
 ├── src/
-│   ├── embedder.py         ← embed text via Workers AI (@cf/baai/bge-base-en-v1.5)
-│   ├── vector_search.py    ← Cloudflare Vectorize queries (incidents + runbooks indexes)
-│   ├── rca_generator.py    ← Claude-powered RCA drafting + structured output
-│   ├── anthropic_client.py ← shared Anthropic SDK client (handles rate limiting + logging)
-│   └── atlassian_client.py ← Atlassian REST client with backoff (used for data fetching)
+│   ├── cf_ai_client.py       CF Workers AI calls (embed, chat, safety filter)
+│   ├── vector_search.py      xqdrant client (search incidents + runbooks)
+│   ├── rca_generator.py      RCA drafting via CF Workers AI (structured Pydantic output)
+│   ├── atlassian_client.py   Atlassian REST client with exponential backoff
+│   └── minio_client.py       S3-compatible blob storage via MinIO
 └── tests/
-    ├── unit/
-    │   ├── test_embedder.py       ← mocks Workers AI call
-    │   ├── test_vector_search.py  ← mocks Vectorize API
-    │   └── test_rca_generator.py  ← mocks Anthropic API
+    ├── unit/                 all external calls mocked (pytest-httpx)
     ├── integration/
-    │   └── test_api_endpoints.py  ← tests the FastAPI routes with mocked dependencies
     └── fixtures/
-        ├── sample_incident.json
-        ├── sample_similar_incidents.json
-        └── sample_runbooks.json
 ```
 
 ## API Endpoints
 
 ```
-POST /analyze
-    Input:  { incident: NormalizedIncident, requested_by: str (accountId) }
-    Output: { rca_draft: RcaDraft, similar_incidents: list, runbooks: list }
-
-POST /search
-    Input:  { query: str, index: "incidents" | "runbooks", k: int }
-    Output: { results: list[SearchResult] }
-
-POST /embed
-    Input:  { texts: list[str] }
-    Output: { embeddings: list[list[float]] }
-
-GET  /health
-    Output: { status: "ok", version: str }
+POST /analyze   → { incident, requested_by } → { rca_draft, similar, runbooks }
+POST /search    → { query, index, k }         → { results }
+POST /embed     → { texts }                   → { embeddings }
+GET  /health    → { status: "ok" }
 ```
 
-## Request Authentication
-
-Every request from Forge must include:
-```python
-# api.py — verify on every request
-from fastapi import Request, HTTPException
-
-async def verify_sentinel_secret(request: Request):
-    secret = request.headers.get("X-Sentinel-Secret")
-    if secret != os.environ["FORGE_REMOTE_SECRET"]:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    # also log the accountId for audit trail
-    account_id = request.headers.get("X-Account-Id", "unknown")
-    logger.info(f"Request from accountId={account_id}")
-```
-
-## Embedder Pattern
+## LLM Pattern — CF Workers AI (NOT Anthropic SDK)
 
 ```python
-# src/embedder.py
-# Workers AI model: @cf/baai/bge-base-en-v1.5 → 768-dim vectors
+# All LLM calls use this pattern — see root CLAUDE.md Section 7
+import httpx, os
 
-import httpx
+CF_AI_URL = f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai/run"
 
-CF_EMBED_URL = (
-    f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}"
-    f"/ai/run/@cf/baai/bge-base-en-v1.5"
-)
-
-async def embed(texts: list[str]) -> list[list[float]]:
-    """
-    Embed texts using Cloudflare Workers AI (BGE-Base-EN-v1.5, 768 dims).
-    Free tier: 10,000 neurons/day. Resets at 00:00 UTC.
-    """
+async def generate_rca(incident, similar, runbooks) -> RcaDraft:
+    messages = [
+        {"role": "system", "content": RCA_SYSTEM_PROMPT},
+        {"role": "user", "content": build_rca_prompt(incident, similar, runbooks)}
+    ]
     async with httpx.AsyncClient() as client:
         r = await client.post(
-            CF_EMBED_URL,
-            headers={"Authorization": f"Bearer {CF_API_TOKEN}"},
-            json={"text": texts}
+            f"{CF_AI_URL}/{os.environ['CF_AI_MODEL_MAIN']}",
+            headers={"Authorization": f"Bearer {os.environ['CLOUDFLARE_API_TOKEN']}"},
+            json={"messages": messages, "max_tokens": 1000},
+            timeout=30.0,
         )
         r.raise_for_status()
-        return r.json()["result"]["data"]
+        raw = r.json()["result"]["response"]
+    return RcaDraft.model_validate_json(raw)
 ```
 
-## RCA Generator Pattern
+## xqdrant Pattern
 
 ```python
-# src/rca_generator.py
-# Always use structured output (Pydantic) — required for downstream eval
+from qdrant_client import QdrantClient
+from qdrant_client.models import SearchParams
 
-class RcaDraft(BaseModel):
-    root_cause_hypothesis: str
-    evidence: list[str]        # specific runbook sections + past incident keys cited
-    severity_rationale: str
-    proposed_severity: Literal["P1", "P2", "P3", "P4"]
-    proposed_assignee_team: str
-    duplicate_check: DuplicateCheck
-    knowledge_gaps: list[str]
-    confidence_score: float     # 0.0–1.0; below CONFIDENCE_THRESHOLD → flag_for_human
+# xqdrant is at localhost:6333 — INTERNAL ONLY
+client = QdrantClient(url=os.environ["XQDRANT_URL"])  # http://localhost:6333
 
-async def generate_rca(
-    incident: NormalizedIncident,
-    similar_incidents: list[SearchResult],
-    runbooks: list[SearchResult],
-) -> RcaDraft:
-    """Generate a structured RCA draft using Claude."""
-    # Always structured output — never free text
-    response = await anthropic_client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1000,
-        system=RCA_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": build_rca_prompt(incident, similar_incidents, runbooks)}],
-    )
-    # Parse with Pydantic
-    return RcaDraft.model_validate_json(response.content[0].text)
+results = client.search(
+    collection_name=os.environ["XQDRANT_INCIDENTS_COLLECTION"],
+    query_vector=embedding,
+    limit=5,
+    with_payload=True,
+)
 ```
 
-## Critical Rules for This Package
+## MinIO Blob Storage Pattern
 
-- **All Anthropic API calls go through `anthropic_client.py`.** Never instantiate `Anthropic()` directly elsewhere. The shared client handles rate limiting, logging to Langfuse, and error handling.
-- **All LLM outputs use structured Pydantic models.** Never let Claude return free text that you then parse with regex or `str.split()`.
-- **Log every RCA request to Langfuse** via `anthropic_client.py` (OpenLLMetry auto-instruments this). Every request must be traceable.
-- **Tests must mock external calls.** Use `pytest-httpx` for Workers AI and Vectorize. Use `anthropic.helpers.make_message()` for mocking Claude responses. No live API calls in tests.
+```python
+import boto3
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url=os.environ["BLOB_STORAGE_ENDPOINT"],      # http://localhost:9090
+    aws_access_key_id=os.environ["BLOB_STORAGE_ACCESS_KEY"],    # minio
+    aws_secret_access_key=os.environ["BLOB_STORAGE_SECRET_KEY"], # miniosecret
+)
+bucket = os.environ["BLOB_STORAGE_BUCKET"]  # sentinel-cassettes
+```
+
+## Security: Verify Every Request
+
+```python
+async def verify_request(request: Request):
+    secret = request.headers.get("X-Sentinel-Secret")
+    if secret != os.environ["FORGE_REMOTE_SECRET"]:
+        raise HTTPException(status_code=401)
+    account_id = request.headers.get("X-Account-Id", "unknown")
+    logger.info(f"request from accountId={account_id}")
+```
+
+## Critical Rules
+
+- **All LLM calls go through CF Workers AI** — never Anthropic SDK, never OpenAI SDK
+- **Blob storage is MinIO** — use boto3 with `endpoint_url=http://localhost:9090`
+- **xqdrant is at localhost:6333** — internal only, never exposed
+- **All LLM outputs must be Pydantic models** — never free text
+- **Attribution from xqdrant MUST be propagated** — never discard it
 
 ## Known Gotchas
 
-- **Workers AI free tier is 10,000 neurons/day**, reset at 00:00 UTC. During the demo, batch embedding calls to avoid hitting the limit. Don't embed one at a time in a loop.
-- **Vectorize returns results even for poor matches.** Always filter by `score > VECTOR_SIMILARITY_THRESHOLD` (default: 0.75 in constants). Without this, the RCA cites irrelevant runbooks.
-- **Claude's `max_tokens` must be set.** Structured output prompts that request JSON need enough headroom. Use `max_tokens=1000` for RCA drafts.
+- CF Workers AI free tier: 10,000 neurons/day, resets at 00:00 UTC. Batch embedding calls.
+- xqdrant returns results even for poor matches — filter by `score > VECTOR_SIMILARITY_THRESHOLD` (0.75)
+- Forge timeout is 25 seconds — keep remote calls under 15s
 
 ## Commands
 
 ```bash
 make test-uc3
 cd packages/atlassian-remote && uv run uvicorn api:app --reload --port 8080
-curl -X POST http://localhost:8080/health
+curl http://localhost:8080/health
 make deploy-remote
 ```

@@ -8,221 +8,218 @@
 
 ## Project Overview
 
-**Sentinel** is a unified AI agent reliability platform for the Atlassian ecosystem, built for the AINS Hackathon 2026.
+**Sentinel** is a unified AI agent reliability platform for the Atlassian ecosystem.
+**Repo:** `https://github.com/ahmedxsaad/AINS`
+**Team:** Ahmed Saad, Moetez Fradi, Ahmed Ben Rejeb (Team Selecao)
 
-Three use cases, one system:
-- **UC2 (Flight Recorder):** captures OTel GenAI traces of every agent run — LLM calls, tool calls, state snapshots
-- **UC1 (Eval Engine):** judges those traces using code graders + LLM-as-judge, produces auditable verdicts with failure attribution and drift detection
-- **UC3 (Atlassian Agent):** a Rovo Agent on Forge that gets instrumented by UC1+UC2; verdicts are filed as Jira issues
-
-All three share a single OTel `gen_ai.*` trace spine.
+Three use cases, one OTel GenAI trace spine:
+- **UC2 (Flight Recorder):** captures every LLM call and tool call
+- **UC1 (Eval Engine):** judges traces, produces auditable verdicts
+- **UC3 (Atlassian Agent):** Rovo Agent on Forge, instrumented by UC1+UC2
 
 ---
 
-## Repository Structure
+## DEPLOYED INFRASTRUCTURE (use these exact values)
 
 ```
-sentinel/
-├── CLAUDE.md                  ← Claude Code reads this (same content as AGENTS.md)
-├── AGENTS.md                  ← You are here (Codex and others read this)
-├── Makefile                   ← single source of truth for all commands
-├── .env.example               ← environment variable template
-│
-├── packages/
-│   ├── trace-core/            ← shared OTel GenAI schema (Python + TypeScript types)
-│   ├── flight-recorder/       ← UC2: HTTP proxy + record/replay/bisect (Python)
-│   ├── eval-engine/           ← UC1: graders, judge, drift, verdicts (Python)
-│   ├── atlassian-agent/       ← UC3: Forge Rovo Agent + Actions (TypeScript)
-│   ├── atlassian-remote/      ← UC3: heavy compute backend via Forge Remote (Python)
-│   └── dashboard/             ← shared UI: traces, verdicts, replay (Next.js)
-│
-├── infra/
-│   ├── cloudflare/wrangler.toml
-│   └── azure/setup.sh
-│
-├── scripts/
-│   ├── seed_atlassian.py      ← creates 100 synthetic incidents + 20 runbooks
-│   └── run_synthetic_eval.py  ← runs eval suite on synthetic data
-│
-├── spec/                      ← open contribution: OTel + MCP proposals
-└── docs/                      ← battle plan, architecture diagram, eval report,technical specifications
-```
+Azure VM:  48.220.48.34  user: Fantazy
 
-Each package has its own `CLAUDE.md` with focused context. Read it before working in that package.
+Services:
+  langfuse.ahmedxsaad.me  → Langfuse UI (port 3000)
+  eval.ahmedxsaad.me      → Eval Engine API (port 8000)
+  remote.ahmedxsaad.me    → Forge Remote API (port 8080)
+  flight.ahmedxsaad.me    → Flight Recorder API (port 8001)
+  localhost:6333          → xqdrant (INTERNAL ONLY)
+  localhost:9090          → MinIO S3 (INTERNAL ONLY)
+
+Cloudflare:
+  D1 database:  sentinel-traces (ID in /srv/sentinel/.env)
+  Vectorize:    sentinel-embeddings (768-dim, cosine)
+  Workers AI:   @cf/meta/llama-3.3-70b-instruct-fp8-fast (main LLM)
+                @cf/meta/llama-guard-3-8b (safety)
+                @cf/baai/bge-base-en-v1.5 (embeddings)
+
+Atlassian:
+  Site:               https://ahmedains.atlassian.net
+  JSM project key:    AO
+  Service desk ID:    1
+  Incident type ID:   10013  ← use ID not name, name is [System] Incident
+  Confluence space:   SENT
+  Incidents seeded:   100 (AO project)
+  Runbooks seeded:    10 (SENT space)
+
+Blob Storage (MinIO — NOT R2, no credit card):
+  Endpoint:    http://localhost:9090
+  Bucket:      sentinel-cassettes
+  Access key:  minio
+  Secret key:  <see /srv/sentinel/.env>
+```
 
 ---
 
 ## Build and Test Commands
 
 ```bash
-make setup          # install all dependencies
 make test           # run all tests — must pass before any commit
-make test-uc1       # eval-engine tests only
-make test-uc2       # flight-recorder tests only
-make test-uc3       # atlassian-remote tests only
 make check          # lint + typecheck — must pass before any commit
+make test-uc1       # eval-engine tests
+make test-uc2       # flight-recorder tests
+make test-uc3       # atlassian-remote + atlassian-agent tests
 make lint           # ruff (Python) + eslint (TypeScript)
 make format         # black + isort (Python), prettier (TypeScript)
-make typecheck      # mypy (Python) + tsc --noEmit (TypeScript)
-make seed           # seed Atlassian dev site with synthetic data
-make eval           # run the eval suite, output pass^k report
-make dev            # start all local development services
-make deploy-forge   # deploy Forge app to Atlassian dev environment
-make deploy-cf      # deploy Cloudflare Workers + D1 migrations
+make eval           # run eval suite, output pass^k report
+make deploy-forge   # deploy Forge app
+make deploy-remote  # deploy to Azure VM
 ```
 
-**Before every commit, always run:**
-```bash
-make check && make test
+**Before every commit:** `make check && make test`
+
+---
+
+## LLM Calls — CF Workers AI Pattern (NO Anthropic SDK)
+
+```python
+import httpx, os
+
+async def cf_ai_chat(messages: list[dict], model: str = None) -> str:
+    model = model or os.environ["CF_AI_MODEL_MAIN"]
+    account_id = os.environ["CLOUDFLARE_ACCOUNT_ID"]
+    token = os.environ["CLOUDFLARE_API_TOKEN"]
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"messages": messages, "max_tokens": 1000},
+            timeout=30.0,
+        )
+        r.raise_for_status()
+        return r.json()["result"]["response"]
+
+async def cf_ai_embed(texts: list[str]) -> list[list[float]]:
+    account_id = os.environ["CLOUDFLARE_ACCOUNT_ID"]
+    token = os.environ["CLOUDFLARE_API_TOKEN"]
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/baai/bge-base-en-v1.5",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"text": texts},
+            timeout=30.0,
+        )
+        r.raise_for_status()
+        return r.json()["result"]["data"]
 ```
-Both must pass with zero errors. No exceptions.
+
+---
+
+## Repository Structure
+
+```
+AINS/
+├── packages/
+│   ├── trace-core/          # Shared OTel GenAI schema — START HERE
+│   ├── flight-recorder/     # UC2: HTTP proxy, record/replay/bisect (Python)
+│   ├── eval-engine/         # UC1: graders, LLM judge, drift (Python)
+│   ├── atlassian-agent/     # UC3: Forge Rovo Agent (TypeScript)
+│   ├── atlassian-remote/    # UC3: CF Workers AI + xqdrant backend (Python)
+│   └── dashboard/           # Shared UI (Next.js)
+├── infra/cloudflare/        # wrangler.toml
+├── infra/azure/             # VM setup
+├── scripts/                 # seed_atlassian.py (ALREADY RUN), run_synthetic_eval.py
+├── spec/                    # Protocol gap proposals
+└── docs/                    # Battle plan, architecture, eval report
+```
 
 ---
 
 ## Agent Behavior Rules
 
 ### Before Starting Any Task
-1. Read `CLAUDE.md` (or this file) to understand current project state
+1. Read `CLAUDE.md` Section 0 (deployed infrastructure values)
 2. Read the `CLAUDE.md` in the relevant package directory
-3. Check Section 11 ("Current Status") for which phase is active
-4. Check Section 10 ("Known Issues/Gotchas") for relevant warnings
+3. Check Section 11 (current status) for active phase
+4. Check Section 10 (known gotchas) for relevant warnings
 
 ### While Working
-- **Respect the file structure.** Never create files outside their designated package. Shared types go in `trace-core/`.
-- **Use `make` commands.** Never run raw `python`, `npm`, `pytest` commands — use the `Makefile` aliases.
-- **Write tests with code.** Every new function ships with at least one test. Tests are documentation.
-- **Use constants, never magic numbers.** Every numeric threshold must be a named constant with a comment.
-- **Type everything.** Python: type hints on all signatures. TypeScript: strict mode, no `any`.
-- **Write docstrings on every function.** Codex reads these. Another AI must be able to understand the function from its docstring alone.
+- Use `make` commands — never raw `python`, `npm`, `pytest`
+- Write tests with code — every function ships with at least one test
+- Use constants, never magic numbers
+- All LLM calls use CF Workers AI pattern above — never Anthropic SDK
+- Blob storage uses MinIO via boto3 with `endpoint_url=http://localhost:9090`
+- xqdrant is at `http://localhost:6333` — never expose externally
+- Atlassian issue creation: always use `{"id": "10013"}` for Incident type
 
 ### Committing
-- **Commit at every logical checkpoint** — a passing test, a completed function, a working action
-- **Use Conventional Commits format:** `type(scope): description`
-  - Types: `feat`, `fix`, `test`, `refactor`, `chore`, `docs`, `perf`
-  - Scopes: `trace-core`, `flight-recorder`, `eval-engine`, `atlassian-agent`, `atlassian-remote`, `dashboard`, `infra`, `spec`
-- **Good:** `feat(eval-engine): add position-bias calibration to LLM judge`
-- **Bad:** `fix stuff`, `WIP`, `update`, `done`
+- Conventional Commits: `type(scope): description`
+- Types: `feat`, `fix`, `test`, `refactor`, `chore`, `docs`
+- Scopes: `trace-core`, `flight-recorder`, `eval-engine`, `atlassian-agent`, `atlassian-remote`, `dashboard`
 - Run `make check && make test` before every commit
 
 ### After Completing a Task
-- **Update `CLAUDE.md`** if any of the following changed:
-  - File structure (new modules, files)
-  - Architecture decisions (new patterns adopted)
-  - Known issues (new gotcha discovered)
-  - Commands (new `make` target added)
-  - Environment variables (new var required)
-  - Status (phase completed or blocked)
-- **Mirror changes to `AGENTS.md`** — they must stay in sync
-- Update the "Last updated" line at the bottom of both files
+- Update `CLAUDE.md` if architecture, commands, or gotchas changed
+- Mirror changes to `AGENTS.md`
+- Update Section 11 (current status)
 
 ---
 
 ## Key Architectural Patterns
 
 ### 1. OTel GenAI Trace Schema
-All agent runs emit `gen_ai.*` spans. The shared schema lives in `packages/trace-core/`.
 ```python
-# Always import trace types from trace-core, never redefine them
-from sentinel.trace_core import TraceRecord, RunManifest, TraceKind
+from sentinel.trace_core import TraceRecord, EvalVerdict, AuditBlock
+# Never redefine these — import from trace-core
 ```
 
-### 2. Pydantic Structured Outputs (Required for Replay Determinism)
-Tool dispatch must always use structured JSON (Pydantic). Never parse tool calls from free text.
+### 2. Pydantic Structured Outputs (required for replay determinism)
 ```python
 class ToolCall(BaseModel):
     tool_name: str
     arguments: dict[str, Any]
-    confidence: float
-
-# ✅ Right: LLM outputs ToolCall model
-# ❌ Wrong: extract tool name from free-text response
+# Never parse tool calls from free text
 ```
 
-### 3. Exponential Backoff on All Atlassian API Calls
-Atlassian rate limits (65K points/hr, enforced March 2026) return HTTP 429. Always use the shared backoff utility:
+### 3. Atlassian API — Always Backoff on 429
 ```python
 from sentinel.atlassian_remote.atlassian_client import api_call_with_backoff
+# Rate limit: 65K points/hr (enforced March 2026)
 ```
 
-### 4. Hash-Chained Audit Records
-Every trace record must be written with the audit chain. Use `write_audit_record()` from `flight-recorder`:
+### 4. Atlassian Issue Creation — Use Issue Type ID
 ```python
-from sentinel.flight_recorder.audit.hash_chain import write_audit_record
+# CORRECT — use ID
+"issuetype": {"id": "10013"}
+# WRONG — name rejected by AO JSM project
+"issuetype": {"name": "Incident"}
+# Also: do NOT include "priority" or "labels" fields for AO project
 ```
 
-### 5. Environment Variables Only
-No hardcoded URLs, tokens, or IDs anywhere in the codebase. All config comes from `.env` via `python-dotenv` or `process.env` in Node.
-
----
-
-## Coding Standards Summary
-
-**Python:**
-- Type hints required on all functions
-- Docstring required on all functions (explain what, why, args, returns, raises)
-- `ruff` for linting (must pass), `black` for formatting, `mypy` for type checking
-- `pytest` for tests, fixtures in `tests/fixtures/`
-- 80% minimum line coverage per package
-
-**TypeScript:**
-- Strict mode (`"strict": true` in tsconfig)
-- JSDoc required on all exported functions
-- No `any` without an explanatory comment
-- `eslint` + `prettier`, `vitest` for tests
-
-**Universal:**
-- No `TODO`/`FIXME` on `main` — create a GitHub Issue instead
-- No commented-out code — delete it (git history preserves it)
-- No `console.log` in production code — use the structured logger
-- All numeric thresholds are named constants with a comment explaining their origin
-
----
-
-## Environment Variables
-
-See `.env.example` for the full list. Key variables:
-
-| Variable | Used By | Description |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | eval-engine, atlassian-remote | Main LLM for judging and RCA |
-| `CF_ACCOUNT_ID`, `CF_API_TOKEN` | All CF services | Cloudflare access |
-| `CF_D1_DATABASE_ID` | flight-recorder, eval-engine | Trace + verdict storage |
-| `ATLASSIAN_SITE` | atlassian-remote, scripts | Your `https://xxx.atlassian.net` URL |
-| `ATLASSIAN_API_TOKEN` | atlassian-remote, scripts | Atlassian API token |
-| `LANGFUSE_HOST` | All packages (instrumentation) | Self-hosted Langfuse on Azure VM |
-| `AUDIT_HMAC_KEY` | flight-recorder | Must be 32+ random chars |
-| `FLIGHT_MODE` | flight-recorder | `record` \| `replay` \| `passthrough` |
-| `EVAL_CONFIDENCE_THRESHOLD` | eval-engine | Default: `0.70` |
-
----
-
-## What Good Output Looks Like (Codex Evaluation Criteria)
-
-When Codex reviews this codebase, it will check:
-- [ ] Functions have docstrings that explain intent, not just what the code does
-- [ ] All type hints are present and correct (mypy passes)
-- [ ] Tests exist and cover both happy path and failure cases
-- [ ] No magic numbers — only named constants
-- [ ] No hardcoded secrets or URLs
-- [ ] Conventional commit messages throughout git history
-- [ ] CLAUDE.md and AGENTS.md are current (not stale)
-- [ ] `make check && make test` passes from a clean checkout
-- [ ] The file structure matches what is documented in Section 2
+### 5. MinIO Blob Storage
+```python
+import boto3
+s3 = boto3.client(
+    "s3",
+    endpoint_url=os.environ["BLOB_STORAGE_ENDPOINT"],
+    aws_access_key_id=os.environ["BLOB_STORAGE_ACCESS_KEY"],
+    aws_secret_access_key=os.environ["BLOB_STORAGE_SECRET_KEY"],
+)
+# bucket: sentinel-cassettes
+```
 
 ---
 
 ## Current Status
 
-| Phase | Status | Notes |
-|---|---|---|
-| Phase 0 — Foundation | ⬜ Not started | |
-| Phase 1 — UC2 Flight Recorder | ⬜ Not started | |
-| Phase 2 — UC1 Eval Engine | ⬜ Not started | |
-| Phase 3 — UC3 Atlassian Agent | ⬜ Not started | |
-| Phase 4 — Integration | ⬜ Not started | |
-| Phase 5 — Differentiators | ⬜ Not started | |
+| Phase | Status |
+|---|---|
+| Phase 0 — Foundation | ✅ Complete |
+| Phase 1 — UC2 Flight Recorder | ⬜ Not started |
+| Phase 2 — UC1 Eval Engine | ⬜ Not started |
+| Phase 3 — UC3 Atlassian Agent | ⬜ Not started |
+| Phase 4 — Integration | ⬜ Not started |
+| Phase 5 — Differentiators | ⬜ Not started |
+
+**⚡ Next: `packages/trace-core/src/schema.py`**
 
 ---
 
-*Last updated: 17/06/2026 20:01 | Updated by: Ahmed*
-*This file mirrors `CLAUDE.md`. Keep them in sync.*
+*Last updated: 18 June 2026 by Ahmed Saad*
+*| Mirrors CLAUDE.md*
