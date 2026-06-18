@@ -120,8 +120,14 @@ format: ## Auto-format all code (black + isort for Python, prettier for TS)
 	$(PNPM) --filter dashboard format
 
 typecheck: ## Run mypy (Python) + tsc --noEmit (TypeScript)
-	@echo "→ Type checking Python..."
-	$(UV) run mypy packages/ --ignore-missing-imports
+	@echo "→ Type checking Python (per package)..."
+	@# Each package keeps api.py / tests/conftest.py at its root; a single
+	@# recursive `mypy packages/` would see duplicate module names. Check each
+	@# workspace package separately so module roots stay unique.
+	@for pkg in trace-core flight-recorder eval-engine; do \
+	  echo "  → mypy packages/$$pkg"; \
+	  $(UV) run mypy packages/$$pkg --ignore-missing-imports || exit 1; \
+	done
 	@echo "→ Type checking TypeScript..."
 	$(PNPM) --filter atlassian-agent typecheck
 	$(PNPM) --filter dashboard typecheck

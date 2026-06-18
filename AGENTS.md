@@ -213,7 +213,7 @@ s3 = boto3.client(
 | Phase 0 — Foundation | ✅ Complete |
 | Foundation — `trace-core` | ✅ Complete |
 | Phase 1 — UC2 Flight Recorder | 🟦 In progress |
-| Phase 2 — UC1 Eval Engine | ⬜ Not started |
+| Phase 2 — UC1 Eval Engine | 🟦 In progress |
 | Phase 3 — UC3 Atlassian Agent | ⬜ Not started |
 | Phase 4 — Integration | ⬜ Not started |
 | Phase 5 — Differentiators | ⬜ Not started |
@@ -237,7 +237,19 @@ package root runs on port 8001). Cassette + `RecordingTransport` (record/replay/
 and bisect engines, all reusing `trace_core.normalize_request`/`hash_step_key`. `make test-uc2`
 is green (27 tests, 88% cov); ruff/black/isort/mypy --strict pass on the package.
 
-**⚡ Next: finish UC2 integration glue + start Phase 2 — UC1 Eval Engine.**
+**⚡ eval-engine core is built** — `packages/eval-engine/src/eval_engine/`
+(src-layout, imported as `from eval_engine.graders.code_grader import ...`; `api.py` at the
+package root runs on port 8000). Safety pre-filter (Llama Guard) → deterministic code grader →
+`calibrated_judge` (mandatory position-bias calibration; flip → `uncertain` + `flag_for_human`)
+→ DAG failure attribution → `EvalVerdict` with self-evaluation. `pass^k` uses `all()` not `any()`.
+Verdict reporter files an AO Jira Incident on fail/flag (issue-type id `10013`, no priority/labels).
+All CF Workers AI calls go through `cf_ai_client` and are mocked in tests. `make test-uc1` green
+(19 tests, 74% cov); ruff/black/isort/mypy --strict pass.
+
+> **Tooling note:** `make typecheck` now runs mypy **per package** — one recursive
+> `mypy packages/` collides on the duplicate root-level `api.py`/`conftest.py` module names.
+
+**⚡ Next: Phase 3 — UC3 Atlassian Agent + UC1/UC2 live integration.**
 
 ---
 

@@ -386,12 +386,20 @@ chore(infra): update wrangler.toml with D1 database ID
 | Phase 0 — Foundation | ✅ Done | Azure VM, Langfuse, xqdrant, D1, Vectorize, MinIO, Atlassian, 100 incidents seeded |
 | Foundation — `trace-core` | ✅ Done | Shared contract complete: constants, Pydantic v2 schemas, hash_utils, OTel GenAI span helpers, schema.ts mirror. `make test-core` green (19 tests); ruff/black/isort/mypy --strict clean on the package |
 | Phase 1 — UC2 Flight Recorder | 🟦 In progress | Core built: cassette, RecordingTransport (record/replay/passthrough), @record_tool, hash-chain audit, D1/MinIO clients, replay + bisect, FastAPI on 8001. `make test-uc2` green (27 tests, 88% cov); ruff/black/isort/mypy --strict clean on the package |
-| Phase 2 — UC1 Eval Engine | ⬜ Not started | Start with code grader |
+| Phase 2 — UC1 Eval Engine | 🟦 In progress | Core built: cf_ai_client, safety pre-filter (Llama Guard), code grader, calibrated LLM judge (mandatory position-bias calibration), DAG failure attribution, pass^k (all() not any()), verdict reporter (files AO Jira issue, type id 10013, no priority/labels), FastAPI on 8000. `make test-uc1` green (19 tests, 74% cov); ruff/black/isort/mypy --strict clean |
 | Phase 3 — UC3 Atlassian Agent | ⬜ Not started | Start after trace-core is done |
 | Phase 4 — Integration | ⬜ Not started | |
 | Phase 5 — Differentiators | ⬜ Not started | |
 
-**⚡ Next task: finish Phase 1 wiring + start Phase 2 — UC1 Eval Engine.** The flight-recorder core is in place; remaining UC2 work is integration glue (record a real UC3 agent run end-to-end against live MinIO/D1, write `run_manifests` rows) and a `record`/`replay`/`bisect` CLI. Reuse `normalize_request` / `hash_step_key` from `trace_core` for cassette keys — do not redefine them.
+**⚡ Next task: Phase 3 — UC3 Atlassian Agent, plus UC1/UC2 integration glue.** The UC2 flight-recorder and UC1 eval-engine cores are in place. Remaining cross-cutting work: record a real agent run end-to-end against live MinIO/D1, write `run_manifests` rows, and wire the eval-engine `trace_loader` to the live flight recorder so `POST /evaluate {run_id}` reconstructs full traces. Reuse `normalize_request` / `hash_step_key` from `trace_core` for cassette keys — do not redefine them.
+
+> **eval-engine build notes (18 Jun 2026):**
+> - **Layout:** repo convention `packages/eval-engine/src/eval_engine/` (imported as `from eval_engine.graders.code_grader import ...`); `api.py` at the package root (run `uvicorn api:app --port 8000`). The task's `src/cf_ai_client.py` etc. map under `src/eval_engine/`.
+> - **Pipeline (`verdicts/reporter.evaluate_run`):** safety pre-filter (short-circuits to `fail` if unsafe, skips the judge) → deterministic `code_grader` → `calibrated_judge` → `dag_attributor` → `EvalVerdict` with `SelfEvaluation`. Files an AO Jira Incident on `fail`/flag (issue-type id `10013`, **no** priority/labels), no-op when Atlassian env is unset.
+> - **Position-bias calibration is always on:** `calibrated_judge` runs the judge twice with rubric dimensions reversed; a verdict flip → `uncertain` + `flag_for_human` (`reason="position_bias_detected"`). Verdict per pass is derived from the mean dimension score vs `JUDGE_PASS_THRESHOLD` (0.6).
+> - **`pass^k` uses `all()`:** `metrics.pass_at_k.pass_at_k(results, k=PASS_AT_K_TRIALS)` — empty or any-fail → 0.0.
+> - **Async + mockable:** all CF Workers AI calls go through `cf_ai_client` (`cf_ai_chat`/`cf_ai_embed`/`cf_ai_safety`); tests monkeypatch those module functions (no network). Added `pytest-asyncio` (`asyncio_mode = "auto"`) to the dev group and `packages/eval-engine` to the workspace.
+> - **Tooling:** `make typecheck` now runs **per-package** mypy — a single recursive `mypy packages/` collides on the duplicate root-level `api.py`/`conftest.py` module names across packages (atlassian-remote will add a third `api.py`).
 
 > **flight-recorder build notes (18 Jun 2026):**
 > - **Layout:** follows the repo convention `packages/flight-recorder/src/flight_recorder/` (importable as `from flight_recorder.proxy.cassette import ...`), so on-disk path == import path and `mypy --strict` stays clean. The task's `src/proxy/...` paths map to `src/flight_recorder/proxy/...`. `api.py` is at the package root (run `uvicorn api:app --port 8001`).
