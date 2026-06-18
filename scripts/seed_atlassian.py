@@ -451,9 +451,7 @@ def seed_incidents(project_key: str) -> None:
                             "content": [{"type": "text", "text": description}]
                         }]
                     },
-                    "issuetype": {"name": "Incident"},
-                    "priority": {"name": "High"},
-                    "labels": [f"root-cause:{category['root_cause']}"]
+                    "issuetype": {"id": "10013"},
                 }
             })
             count += 1
@@ -469,7 +467,7 @@ def main() -> None:
     project_key = os.environ.get("ATLASSIAN_JIRA_PROJECT_KEY", "SENT")
     space_key   = get_or_create_confluence_space()
 
-    seed_runbooks(space_key)
+    pass  # runbooks already seeded
     seed_incidents(project_key)
 
     print()
