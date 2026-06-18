@@ -174,7 +174,7 @@
 
 | Package | Language | Deployed On | How |
 |---|---|---|---|
-| `trace-core` | Python + TS | Imported (not deployed) | `uv add sentinel-trace-core` / npm |
+| `trace-core` | Python + TS | Imported (not deployed) | uv workspace member (`from trace_core import ...`) / npm |
 | `flight-recorder` | Python | Azure VM | systemd service, port 8001 |
 | `eval-engine` | Python | Azure VM | systemd service, port 8000 |
 | `atlassian-agent` | TypeScript | Atlassian (Forge) | `forge deploy` |

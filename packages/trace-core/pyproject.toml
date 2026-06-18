@@ -1,0 +1,28 @@
+# pyproject.toml — trace-core
+# The shared contract for all of Sentinel: types, schemas, constants, helpers.
+# This package has ZERO local dependencies — it imports nothing from other
+# Sentinel packages. Everything else imports from here.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trace-core"
+version = "0.1.0"
+description = "Sentinel shared contract: OTel GenAI schemas, audit types, constants, and hash helpers."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Team Selecao" }]
+
+dependencies = [
+    "pydantic>=2.0",                       # all cross-package data models (Pydantic v2)
+    "opentelemetry-sdk>=1.20",             # span creation for otel.py helpers
+    "opentelemetry-semantic-conventions",  # gen_ai.* semantic convention attribute names
+]
+
+# Standard src-layout: the importable package lives at src/trace_core/, so the
+# whole platform does `from trace_core import TraceRecord`. Hatchling maps
+# src/trace_core -> trace_core in the wheel (and for editable installs).
+[tool.hatch.build.targets.wheel]
+packages = ["src/trace_core"]

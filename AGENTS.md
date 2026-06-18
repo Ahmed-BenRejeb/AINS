@@ -165,7 +165,7 @@ AINS/
 
 ### 1. OTel GenAI Trace Schema
 ```python
-from sentinel.trace_core import TraceRecord, EvalVerdict, AuditBlock
+from trace_core import TraceRecord, EvalVerdict, AuditBlock
 # Never redefine these — import from trace-core
 ```
 
@@ -179,7 +179,7 @@ class ToolCall(BaseModel):
 
 ### 3. Atlassian API — Always Backoff on 429
 ```python
-from sentinel.atlassian_remote.atlassian_client import api_call_with_backoff
+from atlassian_remote.atlassian_client import api_call_with_backoff
 # Rate limit: 65K points/hr (enforced March 2026)
 ```
 
@@ -211,13 +211,26 @@ s3 = boto3.client(
 | Phase | Status |
 |---|---|
 | Phase 0 — Foundation | ✅ Complete |
+| Foundation — `trace-core` | ✅ Complete |
 | Phase 1 — UC2 Flight Recorder | ⬜ Not started |
 | Phase 2 — UC1 Eval Engine | ⬜ Not started |
 | Phase 3 — UC3 Atlassian Agent | ⬜ Not started |
 | Phase 4 — Integration | ⬜ Not started |
 | Phase 5 — Differentiators | ⬜ Not started |
 
-**⚡ Next: `packages/trace-core/src/schema.py`**
+`trace-core` is the shared contract for all packages: constants, Pydantic v2 schemas,
+hash utils, OTel GenAI span helpers, and a `schema.ts` mirror. `make test-core` is
+green (19 tests); ruff/black/isort/mypy --strict pass on the package.
+
+- **Layout:** standard src-layout at `packages/trace-core/src/trace_core/`;
+  import as `from trace_core import TraceRecord, EvalVerdict, PASS_AT_K_TRIALS`
+  (no `sentinel.` namespace prefix). Future packages follow `packages/<pkg>/src/<pkg>/`.
+- **Workspace:** root `pyproject.toml` defines the uv workspace + shared tooling config.
+  `make setup` runs `uv sync --all-packages`.
+- **Repo-wide `make check` is not yet green** — blocked only by out-of-scope items:
+  pre-existing `scripts/` lint errors and the TS packages (no `package.json` yet, Phase 3).
+
+**⚡ Next: Phase 1 — `packages/flight-recorder` (httpx transport override, record mode)**
 
 ---
 
