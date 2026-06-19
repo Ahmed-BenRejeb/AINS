@@ -3,7 +3,7 @@
 # Run `make help` to see all available targets.
 
 .PHONY: help setup env dev test test-core test-uc1 test-uc2 test-uc3 test-e2e \
-        lint format typecheck check seed eval eval-report \
+        lint format typecheck check check-docs seed eval eval-report \
         deploy-cf deploy-forge deploy-remote tunnel langfuse \
         clean logs status
 
@@ -132,7 +132,10 @@ typecheck: ## Run mypy (Python) + tsc --noEmit (TypeScript)
 	$(PNPM) --filter atlassian-agent typecheck
 	$(PNPM) --filter dashboard typecheck
 
-check: lint typecheck ## Run lint + typecheck (run before every commit)
+check-docs: ## Verify .env.example + docs haven't drifted from the code
+	@$(UV) run python scripts/check_docs.py
+
+check: check-docs lint typecheck ## Run doc-drift + lint + typecheck (run before every commit)
 	@echo "✓ All checks passed."
 
 # ─── Data & Evaluation ───────────────────────────────────────────────────────

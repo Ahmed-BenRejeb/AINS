@@ -8,7 +8,7 @@
 > **📝 Update log rule (required, no exceptions):** every time you edit this file, update the
 > **_Last updated_** line at the very bottom with the **exact timestamp** (`YYYY-MM-DD HH:MM TZ`),
 > **the name of who/what made the change** (person or agent), and a one-line summary of what changed.
-> Mirror the same update to `AGENTS.md` so the two stay in sync.
+> (`AGENTS.md` is a **symlink** to this file, so it stays in sync automatically — never edit it separately.)
 
 ---
 
@@ -97,7 +97,7 @@ Reference documents:
 ```
 AINS/
 ├── CLAUDE.md                  ← YOU ARE HERE — read first every session
-├── AGENTS.md                  ← mirrors this file (Codex-compatible)
+├── AGENTS.md                  ← symlink → CLAUDE.md (single source of truth; Codex/other agents read this)
 ├── Makefile                   ← all commands live here, use make <cmd>
 ├── .env.example               ← copy to .env, never commit .env
 │
@@ -197,7 +197,8 @@ make test           # run ALL tests across all packages
 make test-uc1       # eval-engine tests only
 make test-uc2       # flight-recorder tests only
 make test-uc3       # atlassian-remote + atlassian-agent tests only
-make check          # lint + typecheck (run before every commit)
+make check          # check-docs + lint + typecheck (run before every commit)
+make check-docs      # .env.example parity with code + no doc drift markers
 make lint           # ruff (Python) + eslint (TypeScript)
 make format         # black + isort (Python), prettier (TypeScript)
 make eval           # run eval suite, output pass^k report
@@ -428,7 +429,7 @@ chore(infra): update wrangler.toml with D1 database ID
 - [ ] No `TODO`/`FIXME` comments in `main` branch
 - [ ] Every Python function has a docstring
 - [ ] Every exported TypeScript function has JSDoc
-- [ ] CLAUDE.md and AGENTS.md are in sync
+- [ ] `make check-docs` passes (`.env.example` parity with code + no doc drift markers)
 - [ ] `make eval` produces a report with `pass^k` metric
 - [ ] End-to-end demo scenario runs without manual intervention
 
@@ -461,4 +462,4 @@ chore(infra): update wrangler.toml with D1 database ID
 
 ---
 
-*Last updated: 2026-06-19 06:25 CET by Ahmed Saad (via Claude Code) — reconciled `.env.example` to match the code (added `CF_AI_MODEL_*`, `BLOB_STORAGE_*`, `XQDRANT_*`, `FLIGHT_RECORDER_URL`; dropped `ANTHROPIC_API_KEY`, `CF_R2_BUCKET`; `ATLASSIAN_JIRA_PROJECT_KEY`→AO); ran `pip-audit` (no known CVEs). Earlier today: reconciled all README/CLAUDE + `docs/` to the deployed stack and added §13 security TODOs. Phase 1 + Phase 2 cores built and green.*
+*Last updated: 2026-06-19 06:41 CET by Ahmed Saad (via Claude Code) — made `AGENTS.md` a **symlink** to this file (kills the manual-mirror drift) and added `make check-docs` + `scripts/check_docs.py` (a CI guard: `.env.example`↔code env parity + forbidden doc-drift markers), wired into `make check`. Earlier today: reconciled `.env.example` + all README/CLAUDE + `docs/` to the deployed stack, added §13 security TODOs, ran `pip-audit` (no CVEs). Phase 1 + Phase 2 cores built and green.*
