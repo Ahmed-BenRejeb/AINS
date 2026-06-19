@@ -7,7 +7,7 @@ Defines the Rovo AI Agent and its Actions. This is the only code that runs insid
 
 ## What Goes Here
 
-- The Forge app manifest (`forge.yml`) defining the `rovo:agent` and `rovo:action` modules
+- The Forge app manifest (`forge.yml`) defining the `rovo:agent` plus its `action` / `function` modules
 - Action handlers: fetch-incident, search-similar-incidents, search-runbooks, post-rca-comment, draft-pir-page, flag-knowledge-gap
 - Atlassian API wrappers (`@forge/api` — Jira, Confluence, JSM calls)
 - The Forge Remote HTTP client (delegates heavy compute to `atlassian-remote`)
@@ -28,26 +28,25 @@ Forge apps are TypeScript-only, run inside Atlassian's sandboxed AWS environment
 
 ```
 atlassian-agent/
-├── forge.yml               Forge app manifest (rovo:agent, rovo:action modules)
+├── forge.yml               Forge manifest: rovo:agent + 6 action + 6 function modules
 ├── package.json
 ├── tsconfig.json           strict TypeScript — "strict": true
+├── jest.config.js          ts-jest; @forge/api manual mock auto-applies
 ├── src/
-│   ├── index.ts            exports all action handlers
-│   ├── actions/
-│   │   ├── fetchIncident.ts
-│   │   ├── searchSimilarIncidents.ts
-│   │   ├── searchRunbooks.ts
-│   │   ├── postRcaComment.ts
-│   │   ├── draftPirPage.ts
-│   │   └── flagKnowledgeGap.ts
+│   ├── index.ts            re-exports the 6 action handlers (handler: index.<fn>)
+│   ├── actions/            fetchIncident, searchSimilarIncidents, searchRunbooks,
+│   │                       postRcaComment, draftPirPage, flagKnowledgeGap
 │   └── lib/
-│       ├── atlassian.ts    @forge/api wrappers
-│       ├── remote.ts       Forge Remote fetch helper
-│       └── backoff.ts      exponential backoff for 429 responses
+│       ├── atlassian.ts    @forge/api wrappers (Jira + Confluence)
+│       ├── remote.ts       Forge Remote client (X-Sentinel-Secret + X-Account-Id)
+│       ├── backoff.ts      exponential backoff for 429 responses
+│       ├── adf.ts          ADF builders + renderers (rcaToAdf / pirToAdf / adfToText)
+│       ├── context.ts      resolve the invoking account id
+│       └── contract.ts     types mirroring trace_core/schema.ts
 └── tests/
-    ├── *.test.ts
-    └── __mocks__/
-        └── @forge/api.ts   Forge API mock for tests
+    ├── lib/ + actions/     *.test.ts (jest, 19 tests)
+    ├── _fixtures.ts        shared fixtures
+    └── __mocks__/@forge/api.ts   @forge/api manual mock
 ```
 
 ## Setup and Deploy
