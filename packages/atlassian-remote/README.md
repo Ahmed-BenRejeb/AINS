@@ -11,7 +11,7 @@ Everything that the Forge sandbox cannot run: text embedding, vector search, and
 - Text embedder (`@cf/baai/bge-base-en-v1.5` via Cloudflare Workers AI)
 - Vector search client (xqdrant at `localhost:6333` — incidents + runbooks collections)
 - RCA generator (CF Workers AI Llama 3.3 70B, structured Pydantic output)
-- Shared CF Workers AI client (`cf_ai_client.py` — chat, embed, safety)
+- Shared CF Workers AI client (`cf_ai_client.py` — chat + embed)
 - Shared Atlassian REST client (with exponential backoff for 429s)
 
 ## What Does NOT Go Here
@@ -19,6 +19,7 @@ Everything that the Forge sandbox cannot run: text embedding, vector search, and
 - Forge/Atlassian SDK code — that is `atlassian-agent` (TypeScript, Forge sandbox)
 - Trace capture — that is `flight-recorder`
 - Verdict production — that is `eval-engine`
+- Blob storage — none of the four endpoints need it, so there is no MinIO client here (MinIO lives in `flight-recorder`)
 
 ## Why It Exists (and Why It's Separate from `atlassian-agent`)
 
@@ -29,17 +30,19 @@ The Forge sandbox has a 25-second timeout, no GPU, and limited memory. Embedding
 ```
 atlassian-remote/
 ├── pyproject.toml
-├── api.py                   FastAPI entry point
-├── src/
-│   ├── cf_ai_client.py      CF Workers AI calls (embed, chat, safety)
-│   ├── vector_search.py     xqdrant queries (localhost:6333, internal only)
-│   ├── rca_generator.py     CF Workers AI RCA drafting (structured Pydantic output)
-│   ├── minio_client.py      S3-compatible blob storage via MinIO
-│   └── atlassian_client.py  Atlassian REST client with backoff
+├── api.py                       FastAPI entry point (port 8080)
+├── src/atlassian_remote/        importable package — `from atlassian_remote.… import …`
+│   ├── config.py                env-driven config (CF + xqdrant + Atlassian + backoff)
+│   ├── cf_ai_client.py          CF Workers AI calls (chat + embed)
+│   ├── vector_search.py         xqdrant queries (localhost:6333, internal only)
+│   ├── rca_generator.py         CF Workers AI RCA drafting (structured RcaDraft output)
+│   ├── analyzer.py              /analyze orchestration (fetch → embed+search → draft)
+│   ├── atlassian_client.py      Atlassian REST client with 429 backoff
+│   └── models.py                AnalyzeResult response envelope
 └── tests/
-    ├── unit/                all external calls mocked (pytest-httpx)
-    ├── integration/         FastAPI route tests with mocked dependencies
-    └── fixtures/            sample incidents, similar incidents, runbooks
+    ├── conftest.py              dummy env; all external calls mocked (pytest-httpx)
+    ├── unit/                    cf_ai_client / atlassian_client / vector_search / rca_generator / analyzer
+    └── integration/             FastAPI route tests (auth + happy paths)
 ```
 
 ## Setup and Run

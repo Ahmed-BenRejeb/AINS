@@ -1,0 +1,156 @@
+# Forge manifest — Sentinel UC3 Rovo agent.
+# app.id is a placeholder; run `forge register` once to mint a real id, then
+# `forge deploy --environment development` and `forge install`.
+app:
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  runtime:
+    name: nodejs22.x
+
+modules:
+  rovo:agent:
+    - key: sentinel-incident-agent
+      name: Sentinel Incident Responder
+      description: >-
+        Triages Jira Service Management incidents: finds similar past incidents
+        and runbooks, drafts a structured root-cause analysis, posts it as a
+        comment, drafts a post-incident-review page, and flags missing runbooks.
+      prompt: >-
+        You are Sentinel, an incident-response copilot for the AO Jira Service
+        Management project. When given an incident key, first call
+        fetch-incident to read it. Use search-similar-incidents and
+        search-runbooks to gather evidence. To produce a root-cause analysis,
+        call post-rca-comment (it analyses the incident and posts an RCA comment)
+        — never invent a root cause yourself. Use draft-pir-page to write a
+        post-incident review, and flag-knowledge-gap when no runbook covers a
+        topic. Always cite the incident ids and runbooks you relied on, and tell
+        the user when a draft was flagged for human review.
+      conversationStarters:
+        - Analyse incident AO-123 and post a root-cause analysis
+        - Find incidents similar to AO-123
+        - Draft a post-incident review page for AO-123
+      actions:
+        - fetch-incident
+        - search-similar-incidents
+        - search-runbooks
+        - post-rca-comment
+        - draft-pir-page
+        - flag-knowledge-gap
+
+  action:
+    - key: fetch-incident
+      name: Fetch incident
+      function: fetchIncident
+      actionVerb: GET
+      description: Fetch a Jira incident's summary, description, and status by issue key.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: true
+          description: The Jira issue key, e.g. "AO-123".
+
+    - key: search-similar-incidents
+      name: Search similar incidents
+      function: searchSimilarIncidents
+      actionVerb: GET
+      description: Find past incidents semantically similar to the supplied text.
+      inputs:
+        query:
+          title: Query text
+          type: string
+          required: true
+          description: Incident text to find similar past incidents for.
+        limit:
+          title: Max results
+          type: number
+          required: false
+          description: Maximum number of results to return (default 5).
+
+    - key: search-runbooks
+      name: Search runbooks
+      function: searchRunbooks
+      actionVerb: GET
+      description: Find runbooks relevant to the supplied incident text.
+      inputs:
+        query:
+          title: Query text
+          type: string
+          required: true
+          description: Incident text to find relevant runbooks for.
+        limit:
+          title: Max results
+          type: number
+          required: false
+          description: Maximum number of results to return (default 5).
+
+    - key: post-rca-comment
+      name: Post RCA comment
+      function: postRcaComment
+      actionVerb: CREATE
+      description: Draft a root-cause analysis for an incident and post it as a comment.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: true
+          description: The incident to analyse and comment on, e.g. "AO-123".
+
+    - key: draft-pir-page
+      name: Draft PIR page
+      function: draftPirPage
+      actionVerb: CREATE
+      description: Draft a post-incident-review Confluence page for an incident.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: true
+          description: The incident to write a post-incident review for.
+        spaceKey:
+          title: Confluence space key
+          type: string
+          required: false
+          description: Target Confluence space key (default "SENT").
+
+    - key: flag-knowledge-gap
+      name: Flag knowledge gap
+      function: flagKnowledgeGap
+      actionVerb: CREATE
+      description: Record a missing-runbook knowledge gap as a tracked Jira issue.
+      inputs:
+        topic:
+          title: Topic
+          type: string
+          required: true
+          description: The topic that has no matching runbook.
+        issueKey:
+          title: Source incident key
+          type: string
+          required: false
+          description: The incident that surfaced the gap, if any.
+
+  function:
+    - key: fetchIncident
+      handler: index.fetchIncident
+    - key: searchSimilarIncidents
+      handler: index.searchSimilarIncidents
+    - key: searchRunbooks
+      handler: index.searchRunbooks
+    - key: postRcaComment
+      handler: index.postRcaComment
+    - key: draftPirPage
+      handler: index.draftPirPage
+    - key: flagKnowledgeGap
+      handler: index.flagKnowledgeGap
+
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - read:confluence-content.summary
+    - write:confluence-content
+  external:
+    fetch:
+      backend:
+        # The atlassian-remote backend (FORGE_REMOTE_URL). Must be a literal here.
+        - 'https://remote.ahmedxsaad.me'
