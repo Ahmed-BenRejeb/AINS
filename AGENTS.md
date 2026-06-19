@@ -3,6 +3,10 @@
 
 > This file mirrors `CLAUDE.md`. Both must stay in sync.
 > **Read this file before starting any task. No exceptions.**
+>
+> **📝 Update log rule (required):** whenever you edit this file (or `CLAUDE.md`), update the
+> **_Last updated_** line at the bottom of both with the **exact timestamp** (`YYYY-MM-DD HH:MM TZ`),
+> **the name of who/what made the change**, and a one-line summary.
 
 ---
 
@@ -253,5 +257,5 @@ All CF Workers AI calls go through `cf_ai_client` and are mocked in tests. `make
 
 ---
 
-*Last updated: 18 June 2026 by Ahmed Saad*
+*Last updated: 2026-06-19 06:11 CET by Ahmed Saad (via Claude Code) — reconciled README/CLAUDE + docs to the deployed stack (CF Workers AI, MinIO, xqdrant; R2 + Queues skipped); security TODOs live in `CLAUDE.md` §13. Phase 1 + Phase 2 cores built.*
 *| Mirrors CLAUDE.md*

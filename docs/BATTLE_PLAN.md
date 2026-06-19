@@ -4,6 +4,13 @@
 > This is the authoritative technical strategy document. Read it before making any architecture, stack, or scope decision.
 > For the official judging criteria and use case specs, see `docs/TECHNICAL_SPECS.md`.
 
+> **⚠️ Stack reality update (post-setup).** This plan predates the final infrastructure decisions.
+> The deployed stack substitutes: **Cloudflare Workers AI** for all LLM/embedding/safety calls
+> (no Anthropic / Claude / `claude-sonnet`), **MinIO** for blob storage (not Cloudflare R2),
+> **xqdrant** for similarity search (not Vectorize), and **skips Cloudflare Queues** (evaluation
+> runs synchronously). Wherever this document says Anthropic/Claude, R2, Vectorize, or Queues,
+> apply those substitutions. The deployed state in root `CLAUDE.md` §0 + §9 is authoritative.
+
 ---
 
 ## 1. The Core Strategy: One System, Not Three Projects

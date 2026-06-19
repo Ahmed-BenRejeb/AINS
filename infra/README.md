@@ -7,9 +7,12 @@ This folder contains **no application code** — only config files and setup scr
 
 ## What Goes Here
 
-- Cloudflare resource configuration (D1, R2, Vectorize, Queues, Workers, Tunnel)
+- Cloudflare resource configuration (D1, Vectorize, Workers AI, Tunnel)
 - Azure VM provisioning scripts and systemd service definitions
 - Any other infrastructure-as-code
+
+> Blob storage uses **MinIO** (on the Azure VM), not Cloudflare R2; **Queues** were skipped
+> (sync eval calls). See root `CLAUDE.md` §9.
 
 ## What Does NOT Go Here
 
@@ -21,7 +24,7 @@ This folder contains **no application code** — only config files and setup scr
 
 | Platform | Responsibility |
 |---|---|
-| **Cloudflare** | Serverless resources: trace metadata (D1), trace blobs (R2), embeddings (Vectorize), async eval jobs (Queues), LLM inference (Workers AI), public HTTPS endpoint (Tunnel) |
+| **Cloudflare** | Serverless resources: trace metadata (D1), embeddings (Vectorize), LLM inference (Workers AI), public HTTPS endpoint (Tunnel). Trace blobs/cassettes use MinIO on Azure (not R2) |
 | **Azure** | Persistent services: Langfuse + Postgres, eval-engine API, atlassian-remote API, Cloudflare Tunnel daemon |
 
 Cloudflare handles everything stateless and globally distributed. Azure handles everything that needs to run persistently as a service.

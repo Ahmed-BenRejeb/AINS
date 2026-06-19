@@ -90,6 +90,13 @@
 
 ---
 
+> **Current stack (the ASCII boxes above reflect the original plan).** All LLM, embedding, and
+> safety calls go through **Cloudflare Workers AI** — there is no Anthropic/Claude usage. Trace
+> blobs & cassettes live in **MinIO** on the Azure VM, **not Cloudflare R2**. Similarity search
+> uses **xqdrant** (`localhost:6333`), **not Vectorize**. **Cloudflare Queues** were skipped —
+> evaluation runs synchronously. The **drift detector** is planned, not yet built. Root
+> `CLAUDE.md` §0 / §9 is authoritative.
+
 ## Data Flow: New Incident → End-to-End
 
 ```
@@ -108,7 +115,7 @@
    → returns top-k similar past incidents + relevant runbook pages
         │
         ▼
-5. atlassian-remote calls Claude (Anthropic API)
+5. atlassian-remote calls the LLM (CF Workers AI — Llama 3.3 70B)
    → generates structured RcaDraft (Pydantic model, never free text)
    → flight-recorder intercepts this LLM call → records gen_ai.* span
         │
@@ -132,7 +139,7 @@
         │
         ▼
 8. EvalVerdict stored → Cloudflare D1
-   Trace (gen_ai.* spans) → Langfuse + D1/R2
+   Trace (gen_ai.* spans) → Langfuse + D1 (metadata) / MinIO (blobs + cassettes)
    Dashboard updated in real-time
 ```
 
@@ -189,11 +196,11 @@ All Azure VM services are exposed externally via **Cloudflare Tunnel** only. The
 
 | Service | Provider | Used For |
 |---|---|---|
-| LLM inference (Claude claude-sonnet-4-6) | Anthropic API | RCA generation, LLM judging |
-| LLM inference (Llama Guard 3, BGE-Base-EN) | Cloudflare Workers AI | Safety filter, embeddings |
+| LLM inference (Llama 3.3 70B) | Cloudflare Workers AI | RCA generation, LLM judging |
+| Safety filter + embeddings (Llama Guard 3, BGE-Base-EN) | Cloudflare Workers AI | Safety pre-filter, 768-dim embeddings |
 | Trace metadata + verdicts | Cloudflare D1 | Structured query access |
-| Trace blobs + cassettes | Cloudflare R2 | Large payload storage |
-| Vector search | Cloudflare Vectorize | Similar incidents + runbooks |
-| Async eval jobs | Cloudflare Queues | Decouple eval from agent run |
+| Trace blobs + cassettes | MinIO (S3-compatible, on Azure VM) | Large payload storage — **R2 skipped** (needs credit card) |
+| Vector search | xqdrant (`localhost:6333`, internal) | Similar incidents + runbooks — **replaces Vectorize** for search |
+| ~~Async eval jobs~~ | — | **Queues skipped** — evaluation runs synchronously |
 | Trace + eval UI | Langfuse (self-hosted) | Human-readable trace exploration |
 | Atlassian workspace | Jira + Confluence + JSM | Data source + output target |
