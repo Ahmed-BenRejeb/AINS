@@ -11,7 +11,7 @@ Sentinel is a unified reliability platform that continuously evaluates, records,
 | Layer | Use Case | What It Does |
 |---|---|---|
 | **UC2 — Flight Recorder** | `packages/flight-recorder` | Transparently captures every LLM call and tool call during a live agent run, enabling deterministic replay without touching live APIs |
-| **UC1 — Eval Engine** | `packages/eval-engine` | Judges agent execution traces using code graders + LLM-as-judge, produces auditable verdicts with failure attribution and drift detection |
+| **UC1 — Eval Engine** | `packages/eval-engine` | Judges agent execution traces using a safety filter + code graders + CF Workers AI LLM-as-judge (with position-bias calibration), produces auditable verdicts with failure attribution and `pass^k` scoring |
 | **UC3 — Atlassian Agent** | `packages/atlassian-agent` + `packages/atlassian-remote` | A Rovo AI Agent on Forge that analyzes JSM incidents, finds similar past incidents and runbooks, and drafts root cause analyses — instrumented by UC1 and UC2 |
 
 The three layers share a single [OpenTelemetry GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) trace spine. UC2 captures, UC1 judges, UC3 produces the agent runs being captured and judged — and verdicts are filed back as Jira issues.
@@ -58,7 +58,7 @@ sentinel/
 │   └── dashboard/          Shared UI: traces, verdicts, replay, incidents
 │
 ├── 🏗️  infra/              Infrastructure configuration (not application code)
-│   ├── cloudflare/         Wrangler config for D1, R2, Vectorize, Queues, Tunnel
+│   ├── cloudflare/         Wrangler config for D1, Vectorize, Workers AI, Tunnel
 │   └── azure/              Azure VM provisioning scripts and systemd services
 │
 ├── 📜 scripts/             One-off scripts: data seeding, eval runs, migrations

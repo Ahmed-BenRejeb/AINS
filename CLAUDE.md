@@ -4,6 +4,11 @@
 > This file is the single source of truth for project context, architecture, and working rules.
 > **Update it whenever architecture changes, a gotcha is discovered, or a phase completes.**
 > Codex will evaluate your work after each session — write code as if you won't be there to explain it.
+>
+> **📝 Update log rule (required, no exceptions):** every time you edit this file, update the
+> **_Last updated_** line at the very bottom with the **exact timestamp** (`YYYY-MM-DD HH:MM TZ`),
+> **the name of who/what made the change** (person or agent), and a one-line summary of what changed.
+> Mirror the same update to `AGENTS.md` so the two stay in sync.
 
 ---
 
@@ -429,4 +434,31 @@ chore(infra): update wrangler.toml with D1 database ID
 
 ---
 
-*Last updated: 18 June 2026 by Ahmed Saad; Phase 0 + trace-core foundation complete, starting Phase 1*
+## 13. Outstanding TODOs — Security (from the UC1/UC2 code review, 2026-06-19)
+
+> None block local dev, but all should be closed before the public demo: the FastAPI services are
+> exposed to the internet via Cloudflare Tunnel. Severity in parentheses.
+
+- [ ] **(Medium) Authenticate the public APIs.** `eval-engine` (`:8000`) and `flight-recorder`
+      (`:8001`) currently have **no auth**. `GET /runs` + `/runs/{run_id}` expose recorded traces
+      (prompt / incident contents); `/replay`, `/bisect`, `/evaluate` are freely triggerable. Add
+      the same shared-secret check `atlassian-remote` uses (`X-Sentinel-Secret` via a FastAPI
+      `Depends`).
+- [ ] **(Medium) `/evaluate` abuse vector.** It accepts arbitrary `records` (runs the LLM judge →
+      burns CF Workers AI neurons, no rate limit) and `file_issue` defaults to `True`, so an
+      unauthenticated failing/flagged trace **creates a Jira Incident in AO**. Require auth, default
+      `file_issue=False` on the public route, and cap `/evaluate/batch` size.
+- [ ] **(Low) Harden `d1_client.insert` identifiers.** Table/column names are interpolated into the
+      SQL string (values are parameterized with `?`). Safe today — callers pass constants — but add
+      an identifier allowlist / `^[A-Za-z_][A-Za-z0-9_]*$` check to remove the latent injection sink.
+- [ ] **(Low) Validate `run_id` as a UUID** before using it as a MinIO object key (`{run_id}.json`)
+      and in `trace_loader` URL paths.
+- [ ] **(Info) Wire structured logging.** `LOG_LEVEL` exists in `trace_core` but no logger is set up;
+      add request/audit logging to the services.
+- [ ] **(Info) Fix the eval-report generator.** `docs/eval_report.md` still reports
+      `claude-sonnet-4-6` as the evaluator model — update `scripts/run_synthetic_eval.py` to the CF
+      Workers AI Llama model when the eval pipeline is wired.
+
+---
+
+*Last updated: 2026-06-19 06:11 CET by Ahmed Saad (via Claude Code) — reconciled all README/CLAUDE + `docs/` (ARCHITECTURE, BATTLE_PLAN) to the deployed stack (CF Workers AI, MinIO, xqdrant; R2 + Queues skipped); added §13 security TODOs from the UC1/UC2 code review. Phase 1 (flight-recorder) + Phase 2 (eval-engine) cores built and green.*

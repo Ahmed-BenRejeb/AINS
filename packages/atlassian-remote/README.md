@@ -1,7 +1,7 @@
 # atlassian-remote
 
 **UC3 — The heavy compute backend.**
-Everything that the Forge sandbox cannot run: text embedding, vector search, and Claude-powered RCA generation. Called exclusively by `atlassian-agent` via Forge Remote HTTP.
+Everything that the Forge sandbox cannot run: text embedding, vector search, and CF Workers AI–powered RCA generation. Called exclusively by `atlassian-agent` via Forge Remote HTTP.
 
 ---
 
@@ -9,9 +9,9 @@ Everything that the Forge sandbox cannot run: text embedding, vector search, and
 
 - FastAPI server exposing `/analyze`, `/search`, `/embed`, `/health` endpoints
 - Text embedder (`@cf/baai/bge-base-en-v1.5` via Cloudflare Workers AI)
-- Vector search client (Cloudflare Vectorize — incidents + runbooks indexes)
-- RCA generator (Claude via Anthropic API, structured Pydantic output)
-- Shared Anthropic client (rate limiting + Langfuse logging)
+- Vector search client (xqdrant at `localhost:6333` — incidents + runbooks collections)
+- RCA generator (CF Workers AI Llama 3.3 70B, structured Pydantic output)
+- Shared CF Workers AI client (`cf_ai_client.py` — chat, embed, safety)
 - Shared Atlassian REST client (with exponential backoff for 429s)
 
 ## What Does NOT Go Here
@@ -31,10 +31,10 @@ atlassian-remote/
 ├── pyproject.toml
 ├── api.py                   FastAPI entry point
 ├── src/
-│   ├── embedder.py          Workers AI embedding calls
-│   ├── vector_search.py     Cloudflare Vectorize queries
-│   ├── rca_generator.py     Claude RCA drafting (structured Pydantic output)
-│   ├── anthropic_client.py  shared Anthropic client (rate limit + Langfuse logging)
+│   ├── cf_ai_client.py      CF Workers AI calls (embed, chat, safety)
+│   ├── vector_search.py     xqdrant queries (localhost:6333, internal only)
+│   ├── rca_generator.py     CF Workers AI RCA drafting (structured Pydantic output)
+│   ├── minio_client.py      S3-compatible blob storage via MinIO
 │   └── atlassian_client.py  Atlassian REST client with backoff
 └── tests/
     ├── unit/                all external calls mocked (pytest-httpx)
@@ -62,12 +62,15 @@ The API verifies both on every request. Never bypass this check in production.
 ## All LLM Outputs Must Use Pydantic Models
 
 ```python
-class RcaDraft(BaseModel):
+# Import the canonical model from trace-core — never redefine it here.
+from trace_core import RcaDraft
+
+class RcaDraft(BaseModel):  # (reference — defined in trace_core.schema)
     root_cause_hypothesis: str
     evidence: list[str]
-    proposed_severity: Literal["P1", "P2", "P3", "P4"]
+    proposed_severity: Literal["critical", "high", "medium", "low"]  # trace_core.SeverityLevel
     confidence_score: float
     ...
 ```
 
-Never let Claude return free text and parse it with regex. Structured output is required for the downstream eval engine to score the RCA consistently.
+Never let the LLM return free text and parse it with regex. Structured output is required for the downstream eval engine to score the RCA consistently.

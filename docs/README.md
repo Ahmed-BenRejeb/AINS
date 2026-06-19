@@ -34,6 +34,6 @@ Technical documentation for the Sentinel project.
 
 1. All six packages and their relationships
 2. The OTel GenAI trace spine connecting them
-3. External services: Anthropic API, Cloudflare (D1/R2/Vectorize/Workers AI), Atlassian (Jira/Confluence/JSM/Forge), Azure VM, Langfuse
+3. External services: Cloudflare (D1/Vectorize/Workers AI), MinIO (blob storage), Atlassian (Jira/Confluence/JSM/Forge), Azure VM, Langfuse
 4. Data flow: agent run → flight recorder → eval engine → verdict → Jira issue
 5. Deployment targets for each component

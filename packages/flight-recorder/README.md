@@ -7,13 +7,13 @@ Transparently intercepts every LLM call and tool call, stores the full trace, an
 
 ## What Goes Here
 
-- The LLM HTTP proxy (httpx transport override — intercepts Anthropic/OpenAI API calls)
+- The LLM HTTP proxy (httpx transport override — intercepts **Cloudflare Workers AI** calls)
 - The MCP/tool call interceptor (decorator-based)
 - Cassette read/write logic (match recorded responses by normalized step key)
 - The replay engine (re-executes an agent using cassette responses instead of live APIs)
 - The bisect engine (finds the first diverging step between two runs)
 - Hash-chained audit record writer (tamper-evident, write-ahead logging)
-- D1 and R2 storage clients (metadata and blobs)
+- D1 and **MinIO** storage clients (trace metadata and cassette blobs — MinIO, not R2)
 
 ## What Does NOT Go Here
 
@@ -27,42 +27,47 @@ When an AI agent fails in production, you cannot just re-run it — the LLM is n
 
 ## Structure
 
+Standard src-layout: the importable package is `src/flight_recorder/`
+(`from flight_recorder.proxy.cassette import ...`); `api.py` is at the package root.
+
 ```
 flight-recorder/
-├── src/
+├── api.py                       FastAPI server (port 8001): /runs /replay /bisect /health
+├── src/flight_recorder/
+│   ├── config.py                FLIGHT_MODE resolution, CF-URL detection, genesis hash
+│   ├── exceptions.py            CassetteMissError (replay never falls back to a live call)
 │   ├── proxy/
-│   │   ├── llm_proxy.py          httpx transport override (LLM API interception)
-│   │   ├── mcp_interceptor.py    decorator for tool call interception
+│   │   ├── llm_proxy.py          RecordingTransport — httpx override, intercepts CF AI calls
+│   │   ├── mcp_interceptor.py    @record_tool decorator for tool call interception
 │   │   └── cassette.py           cassette read/write + request normalization
 │   ├── replay/
-│   │   ├── engine.py             replay orchestrator
+│   │   ├── engine.py             replay orchestrator (asserts zero live calls)
 │   │   └── bisect.py             find first diverging step between two runs
 │   ├── storage/
 │   │   ├── d1_client.py          trace metadata → Cloudflare D1
-│   │   └── r2_client.py          trace blobs → Cloudflare R2
+│   │   └── minio_client.py       cassette blobs → MinIO (S3-compatible, NOT R2)
 │   └── audit/
 │       └── hash_chain.py         write_audit_record() — hash-chained HMAC receipts
-└── tests/
-    ├── unit/
-    ├── integration/
-    └── fixtures/                 pre-recorded cassettes for deterministic tests
+└── tests/                        cassette / llm_proxy / hash_chain / replay / mcp / bisect
 ```
 
 ## Setup and Run
 
 ```bash
+make test-uc2                                   # pytest + coverage (from repo root)
 cd packages/flight-recorder
-uv sync
-uv run pytest tests/ -v
+FLIGHT_MODE=replay uv run uvicorn api:app --port 8001   # serve /runs, /replay, /bisect
+```
 
-# Record a run
-FLIGHT_MODE=record uv run python -m sentinel.flight_recorder.record --agent my_agent
+```python
+# Record a run, then replay it with zero live API calls
+import httpx
+from flight_recorder import RecordingTransport, replay_run
 
-# Replay it
-FLIGHT_MODE=replay uv run python -m sentinel.flight_recorder.replay --run-id <uuid>
-
-# Bisect two runs
-FLIGHT_MODE=replay uv run python -m sentinel.flight_recorder.bisect --good <uuid> --bad <uuid>
+client = httpx.Client(transport=RecordingTransport(run_id, mode="record"))
+agent(client)                       # every CF Workers AI call is taped into the cassette
+result = replay_run(run_id, agent)  # re-runs against the cassette
+assert result.live_call_count == 0
 ```
 
 ## Key Environment Variables
