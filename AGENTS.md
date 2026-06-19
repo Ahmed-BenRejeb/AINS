@@ -257,5 +257,5 @@ All CF Workers AI calls go through `cf_ai_client` and are mocked in tests. `make
 
 ---
 
-*Last updated: 2026-06-19 06:11 CET by Ahmed Saad (via Claude Code) — reconciled README/CLAUDE + docs to the deployed stack (CF Workers AI, MinIO, xqdrant; R2 + Queues skipped); security TODOs live in `CLAUDE.md` §13. Phase 1 + Phase 2 cores built.*
+*Last updated: 2026-06-19 06:25 CET by Ahmed Saad (via Claude Code) — reconciled `.env.example` to the code + ran `pip-audit` (no CVEs). Earlier: reconciled README/CLAUDE + docs to the deployed stack; security TODOs live in `CLAUDE.md` §13. Phase 1 + Phase 2 cores built.*
 *| Mirrors CLAUDE.md*
