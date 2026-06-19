@@ -11,74 +11,93 @@ and LLM-powered RCA generation. Called exclusively by `atlassian-agent` via Forg
 
 ## Key Files
 
+> **Layout:** standard src-layout — the importable package is `src/atlassian_remote/`,
+> imported as `from atlassian_remote.vector_search import ...` (repo convention; on-disk
+> path == import path keeps `mypy --strict` clean). `api.py` is at the package root, run
+> with `uvicorn api:app --port 8080`. The task's `src/cf_ai_client.py` etc. map under
+> `src/atlassian_remote/`.
+
 ```
 atlassian-remote/
 ├── pyproject.toml
-├── api.py                    FastAPI server — entry point
-├── src/
-│   ├── cf_ai_client.py       CF Workers AI calls (embed, chat, safety filter)
-│   ├── vector_search.py      xqdrant client (search incidents + runbooks)
-│   ├── rca_generator.py      RCA drafting via CF Workers AI (structured Pydantic output)
-│   ├── atlassian_client.py   Atlassian REST client with exponential backoff
-│   └── minio_client.py       S3-compatible blob storage via MinIO
+├── api.py                       FastAPI server (port 8080): /analyze /search /embed /health
+├── src/atlassian_remote/
+│   ├── config.py                env-driven config: CF models, xqdrant, Atlassian, backoff
+│   ├── cf_ai_client.py          CF Workers AI calls (cf_ai_chat + cf_ai_embed)
+│   ├── vector_search.py         xqdrant query_points (incidents + runbooks) → SearchResult
+│   ├── rca_generator.py         RCA drafting via CF Workers AI → RcaDraft (+ needs_human_review)
+│   ├── analyzer.py              /analyze orchestration: fetch → embed+search → draft
+│   ├── atlassian_client.py      Atlassian REST client with exponential backoff on 429
+│   └── models.py                AnalyzeResult response envelope (composes trace_core types)
 └── tests/
-    ├── unit/                 all external calls mocked (pytest-httpx)
-    ├── integration/
-    └── fixtures/
+    ├── conftest.py              dummy env; all external calls mocked
+    ├── unit/                    cf_ai_client / atlassian_client / vector_search / rca_generator / analyzer
+    └── integration/             FastAPI route tests (auth + happy paths) via TestClient
 ```
+
+> **`minio_client.py` was not built.** None of `/analyze`, `/search`, `/embed`, `/health`
+> need blob storage, so boto3 is not a dependency of this package (the flight-recorder is
+> the package that uses MinIO). The "MinIO Blob Storage Pattern" below is kept as a
+> reference for if that changes.
 
 ## API Endpoints
 
 ```
-POST /analyze   → { incident, requested_by } → { rca_draft, similar, runbooks }
-POST /search    → { query, index, k }         → { results }
-POST /embed     → { texts }                   → { embeddings }
+POST /analyze   → { incident_key, requested_by } → { rca_draft, similar, runbooks, flag_for_human }
+POST /search    → { query, index, k }            → { results }
+POST /embed     → { texts }                      → { embeddings }
 GET  /health    → { status: "ok" }
 ```
+
+> `/analyze` fetches the incident by key, so `rca_draft` is a `trace_core.RcaDraft` and
+> `flag_for_human` is `confidence_score < CONFIDENCE_THRESHOLD` (0.70) — surfaced on the
+> response envelope, **not** added to the shared `RcaDraft` schema. All routes except
+> `/health` require the `X-Sentinel-Secret` header.
 
 ## LLM Pattern — CF Workers AI (NOT Anthropic SDK)
 
 ```python
-# All LLM calls use this pattern — see root CLAUDE.md Section 7
-import httpx, os
+# HTTP lives in cf_ai_client.py (the exact root CLAUDE.md Section 7 pattern);
+# rca_generator.py just builds the prompt and validates the structured output.
+from trace_core import RcaDraft
+from . import cf_ai_client
 
-CF_AI_URL = f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai/run"
-
-async def generate_rca(incident, similar, runbooks) -> RcaDraft:
+async def generate_rca(incident_text, similar, runbooks) -> RcaDraft:
     messages = [
-        {"role": "system", "content": RCA_SYSTEM_PROMPT},
-        {"role": "user", "content": build_rca_prompt(incident, similar, runbooks)}
+        {"role": "system", "content": RCA_SYSTEM_PROMPT},  # pins the exact JSON contract
+        {"role": "user", "content": build_rca_prompt(incident_text, similar, runbooks)},
     ]
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{CF_AI_URL}/{os.environ['CF_AI_MODEL_MAIN']}",
-            headers={"Authorization": f"Bearer {os.environ['CLOUDFLARE_API_TOKEN']}"},
-            json={"messages": messages, "max_tokens": 1000},
-            timeout=30.0,
-        )
-        r.raise_for_status()
-        raw = r.json()["result"]["response"]
-    return RcaDraft.model_validate_json(raw)
+    raw = await cf_ai_client.cf_ai_chat(messages)
+    return RcaDraft.model_validate_json(_extract_json(raw))  # strips ```json fences/preamble
 ```
 
 ## xqdrant Pattern
 
 ```python
 from qdrant_client import QdrantClient
-from qdrant_client.models import SearchParams
 
 # xqdrant is at localhost:6333 — INTERNAL ONLY
 client = QdrantClient(url=os.environ["XQDRANT_URL"])  # http://localhost:6333
 
-results = client.search(
+# qdrant-client 1.18 REMOVED .search() — use query_points() (returns .points).
+response = client.query_points(
     collection_name=os.environ["XQDRANT_INCIDENTS_COLLECTION"],
-    query_vector=embedding,
+    query=embedding,          # a raw 768-dim vector → nearest-neighbour search
     limit=5,
     with_payload=True,
 )
+hits = response.points        # list[ScoredPoint]; .id / .score / .payload
 ```
 
+`search_similar()` filters `score > VECTOR_SIMILARITY_THRESHOLD` (0.75) and **always**
+populates `SearchResult.attribution` — from the payload's explainability block if present,
+else a synthesised `Attribution` whose `confidence_margin` is the score gap to the next hit.
+
 ## MinIO Blob Storage Pattern
+
+> Reference only — `atlassian-remote` does not currently use blob storage (no
+> `minio_client.py`). This is the pattern to follow if an endpoint ever needs it; the
+> flight-recorder is the package that actually talks to MinIO today.
 
 ```python
 import boto3

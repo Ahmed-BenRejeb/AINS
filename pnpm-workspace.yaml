@@ -1,0 +1,5 @@
+# pnpm workspace — TypeScript packages.
+# Lets `pnpm --filter <pkg> <script>` (used by the Makefile) resolve each package.
+# Add packages/dashboard here once it gains a package.json (Phase 5).
+packages:
+  - 'packages/atlassian-agent'

@@ -124,7 +124,7 @@ typecheck: ## Run mypy (Python) + tsc --noEmit (TypeScript)
 	@# Each package keeps api.py / tests/conftest.py at its root; a single
 	@# recursive `mypy packages/` would see duplicate module names. Check each
 	@# workspace package separately so module roots stay unique.
-	@for pkg in trace-core flight-recorder eval-engine; do \
+	@for pkg in trace-core flight-recorder eval-engine atlassian-remote; do \
 	  echo "  → mypy packages/$$pkg"; \
 	  $(UV) run mypy packages/$$pkg --ignore-missing-imports || exit 1; \
 	done
