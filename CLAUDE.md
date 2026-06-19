@@ -409,7 +409,7 @@ chore(infra): update wrangler.toml with D1 database ID
 > **flight-recorder build notes (18 Jun 2026):**
 > - **Layout:** follows the repo convention `packages/flight-recorder/src/flight_recorder/` (importable as `from flight_recorder.proxy.cassette import ...`), so on-disk path == import path and `mypy --strict` stays clean. The task's `src/proxy/...` paths map to `src/flight_recorder/proxy/...`. `api.py` is at the package root (run `uvicorn api:app --port 8001`).
 > - **`FLIGHT_MODE`** is resolved once in `flight_recorder.config.resolve_mode()` and threaded through `RecordingTransport` and `@record_tool`; default is `record`.
-> - **Env vars:** new code uses `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` (per §10 gotcha), plus `CF_D1_DATABASE_ID`, `AUDIT_HMAC_KEY`, and the `BLOB_STORAGE_*` set. `.env.example` still lists the older `CF_*` names — reconcile when wiring live.
+> - **Env vars:** new code uses `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` (per §10 gotcha), plus `CF_D1_DATABASE_ID`, `AUDIT_HMAC_KEY`, and the `BLOB_STORAGE_*` set. `.env.example` was reconciled (2026-06-19) to list exactly what the code reads (added `CF_AI_MODEL_*`, `BLOB_STORAGE_*`, `XQDRANT_*`, `FLIGHT_RECORDER_URL`; dropped `ANTHROPIC_API_KEY`, `CF_R2_BUCKET`).
 > - **Storage is mockable:** `storage.minio_client.{store,load}_blob` and `storage.d1_client.insert/query` are module-level functions tests monkeypatch, so the whole record/replay loop runs with zero network. All HTTP in tests is mocked via `pytest-httpx`.
 > - **Workspace:** added `packages/flight-recorder` to `[tool.uv.workspace] members`; added `pytest-httpx` + `pytest-cov` to the dev group; added a mypy override ignoring missing stubs for `boto3`/`botocore`/`uvicorn`/`mypy_boto3_s3`.
 
@@ -461,4 +461,4 @@ chore(infra): update wrangler.toml with D1 database ID
 
 ---
 
-*Last updated: 2026-06-19 06:11 CET by Ahmed Saad (via Claude Code) — reconciled all README/CLAUDE + `docs/` (ARCHITECTURE, BATTLE_PLAN) to the deployed stack (CF Workers AI, MinIO, xqdrant; R2 + Queues skipped); added §13 security TODOs from the UC1/UC2 code review. Phase 1 (flight-recorder) + Phase 2 (eval-engine) cores built and green.*
+*Last updated: 2026-06-19 06:25 CET by Ahmed Saad (via Claude Code) — reconciled `.env.example` to match the code (added `CF_AI_MODEL_*`, `BLOB_STORAGE_*`, `XQDRANT_*`, `FLIGHT_RECORDER_URL`; dropped `ANTHROPIC_API_KEY`, `CF_R2_BUCKET`; `ATLASSIAN_JIRA_PROJECT_KEY`→AO); ran `pip-audit` (no known CVEs). Earlier today: reconciled all README/CLAUDE + `docs/` to the deployed stack and added §13 security TODOs. Phase 1 + Phase 2 cores built and green.*
