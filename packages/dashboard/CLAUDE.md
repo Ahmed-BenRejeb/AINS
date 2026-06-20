@@ -4,108 +4,124 @@
 
 ## What This Package Does
 
-**The shared UI.** A Next.js app that provides the human-facing view of the entire Sentinel system: execution traces, eval verdicts, replay timelines, incident status, and drift charts. This is what judges see during the demo.
+**The unified Sentinel UI.** A Next.js 16 (App Router, Turbopack) app that gives judges the
+human-facing view of the whole system: the overview/health, recorded agent runs,
+per-run execution traces, eval verdicts (with failure attribution + self-eval),
+and deterministic replay/bisect. Premium dev-tool feel (Vercel/Linear), dark
+theme, Framer Motion throughout.
+
+Runs on **port 3001**.
+
+## Stack
+
+- **Next.js 16 App Router** (Turbopack builds; React 18.3 — Next 16 supports `^18.2`).
+  Server components fetch; client components animate. `params`/`searchParams` are
+  **Promises** (Next 15+), awaited in every page.
+- **Tailwind CSS** with a small hand-rolled **shadcn-style** primitive set
+  (`components/ui/*`) — built by hand rather than via the shadcn CLI so the build
+  needs no network. Uses `class-variance-authority` + `clsx` + `tailwind-merge`.
+- **Framer Motion** for all animation (page fade-in, verdict scale-spring + green
+  pulse / red shake, staggered step timeline, hover lift, counting stats).
+- **lucide-react** icons.
+- Fonts use **system stacks** (declared in `app/globals.css`), not
+  `next/font/google`, so the production build never depends on a remote font host.
 
 ## Key Files
 
 ```
 dashboard/
-├── package.json
-├── tsconfig.json       ← strict TypeScript
-├── next.config.ts
+├── package.json            scripts: dev/build/start (port 3001), lint, typecheck, format, test (=tsc)
+├── tailwind.config.ts      dark palette: canvas #0A0A0A, card #141414, hairline #1F1F1F + verdict accents
 ├── app/
-│   ├── layout.tsx
-│   ├── page.tsx             ← overview: recent runs, pass^k chart, active alerts
-│   ├── traces/
-│   │   ├── page.tsx         ← trace list (all recorded runs)
-│   │   └── [run_id]/
-│   │       └── page.tsx     ← execution graph for one run
-│   ├── verdicts/
-│   │   ├── page.tsx         ← verdict list with filter/sort
-│   │   └── [run_id]/
-│   │       └── page.tsx     ← full verdict detail: dimensions, attribution, self-eval
-│   ├── replay/
-│   │   └── [run_id]/
-│   │       └── page.tsx     ← replay timeline: step-by-step, diff view, inject mode
-│   └── incidents/
-│       └── page.tsx         ← recent JSM incidents + their RCA status
+│   ├── layout.tsx          dark shell + SiteHeader (Suspense-wrapped: it reads searchParams)
+│   ├── globals.css         theme tokens, grid texture, scrollbar, font-var stacks
+│   ├── loading.tsx         skeleton route-transition state (never spinners)
+│   ├── error.tsx           last-resort boundary (offers "open demo / mock")
+│   ├── not-found.tsx
+│   ├── page.tsx                          (1) overview
+│   ├── runs/page.tsx                     (2) all recorded runs
+│   ├── runs/[run_id]/page.tsx            (3) execution trace
+│   ├── verdicts/[run_id]/page.tsx        (4) verdict detail
+│   ├── replay/[run_id]/page.tsx          (5) replay + bisect
+│   └── api/{replay,bisect}/route.ts      server-side POST proxies (mock-aware)
 ├── components/
-│   ├── ExecutionGraph.tsx   ← step-by-step visualization of a trace (key demo component)
-│   ├── VerdictCard.tsx      ← displays a verdict with dimensions + attribution
-│   ├── ReplayTimeline.tsx   ← replay mode UI with inject editor
-│   ├── DriftChart.tsx       ← drift detection chart over time
-│   └── PassAtKChart.tsx     ← pass^k reliability chart
+│   ├── ui/                 card · badge · button · table · skeleton · progress
+│   └── sentinel/
+│       ├── RunStatusBadge.tsx   PASS/FAIL/UNCERTAIN + run-status colours & icons
+│       ├── VerdictCard.tsx      full verdict display (hero + dims + attribution + self-eval)
+│       ├── StepTimeline.tsx     staggered vertical execution timeline
+│       ├── DimensionTable.tsx   per-dimension rubric scores (right-aligned, inline conf bar)
+│       ├── AttributionBox.tsx   failure attribution headline
+│       ├── StatsRow.tsx         home metric cards w/ count-up
+│       ├── AnimatedCounter / ConfidenceBar / DataSourceBadge / EmptyState / PageHeader / SiteHeader / motion
+│       └── views/               *View client components (animation + interactivity) per screen
 └── lib/
-    ├── api.ts               ← typed fetch wrappers for the eval-engine and flight-recorder APIs
-    └── types.ts             ← re-exports from trace-core (no duplication)
+    ├── api.ts              server-side fetch wrappers, ?mock support, live→mock fallback
+    ├── mock-data.ts        realistic fixtures matching the live API shapes exactly
+    ├── types.ts            mirrors trace-core/schema.ts + the live API envelopes
+    └── utils.ts            cn(), withMock(), truncate/pct/timeAgo helpers
 ```
 
-## Design Priorities
+## Data Layer — `?mock=true` is the demo safety net
 
-This is a **demo tool for judges**, not a production product. Prioritize in this order:
-1. **Working** — the data shows up correctly
-2. **Clear** — a non-AI engineer can understand what they're looking at
-3. **Polished** — looks professional (use shadcn/ui components)
+Every accessor in `lib/api.ts` returns `Loaded<T> = { data, source, error? }` where
+`source` is `live | mock | mock-fallback`:
 
-Do **not** spend time on:
-- Authentication/login (not needed for demo)
-- Pagination (demo dataset is small)
-- Mobile responsiveness
-- Dark mode
+- **`?mock=true`** on any page → returns `lib/mock-data.ts` fixtures (`source: mock`).
+- **otherwise** → server-fetches the live service; on ANY failure (network, non-2xx,
+  timeout, missing endpoint) it falls back to mock and tags `source: mock-fallback`.
 
-## Key Demo Screens (Build These First)
+So **all 5 screens render in both modes** and never show a broken state. The header
+`DataSourceBadge` (and the per-page one) tells the viewer which they're looking at.
+Fetches run **server-side** (server components + route handlers), so calling the
+live APIs is server-to-server: no browser CORS, no secrets in the client.
 
-### 1. Run Detail (Execution Graph)
-The most important screen for the demo. Shows a run as a timeline of steps:
-- Each step shows: kind (llm_call / tool_call), timestamp, latency, pass/fail
-- Click a step → expand to see full input/output
-- "Replay this run" button → links to replay view
-- "View verdict" button → links to verdict detail
+`SiteHeader` threads `?mock=true` through every internal link and exposes a toggle,
+so demo mode survives navigation.
 
-### 2. Verdict Detail
-Shows a verdict in human-readable form:
-- Overall verdict badge (pass / fail / uncertain)
-- Per-dimension scores (correctness, efficiency, safety, reasoning)
-- Failure attribution: "Step 2 (retrieval) — confidence 87%"
-- Self-evaluation: confidence score + critique text + "flagged for human review" badge
-- Replay link + recommended action
+## Service URLs / Env
 
-### 3. Replay Timeline
-Shows the replay diff:
-- Side-by-side: original step vs. replayed step
-- Highlight divergence points in red
-- Inject editor: text area to modify a step's output → "Fork from here" button
+Defaults are the live production URLs; override per-env with `NEXT_PUBLIC_*`:
 
-## Component Patterns
+| Env var | Default |
+|---|---|
+| `NEXT_PUBLIC_FLIGHT_RECORDER_URL` | `https://flight.ahmedxsaad.me` |
+| `NEXT_PUBLIC_EVAL_ENGINE_URL` | `https://eval.ahmedxsaad.me` |
+| `NEXT_PUBLIC_FORGE_REMOTE_URL` | `https://remote.ahmedxsaad.me` |
+| `NEXT_PUBLIC_LANGFUSE_URL` | `https://langfuse.ahmedxsaad.me` |
 
-```tsx
-// ✅ Use shadcn/ui for all UI components — consistent, professional
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+(These are read in TS, not Python, so `check_docs.py`'s `.env.example` parity check
+— which only scans `.py` — does not require them.)
 
-// ✅ Data fetching: use React Server Components + fetch (Next.js App Router)
-// in app/verdicts/[run_id]/page.tsx:
-export default async function VerdictPage({ params }: { params: { run_id: string } }) {
-  const verdict = await getVerdict(params.run_id);  // lib/api.ts
-  return <VerdictCard verdict={verdict} />;
-}
+## Known Gotchas
 
-// ✅ API types come from lib/types.ts which re-exports from trace-core
-import type { EvalVerdict, TraceRecord } from "@/lib/types";
-```
+- **The eval engine has no `GET /verdicts` or `GET /verdicts/{id}` endpoint** (only
+  `/health` + `POST /evaluate`/`/evaluate/batch`). The UI optimistically tries those
+  GETs so it lights up automatically if they're ever added, but until then the
+  home "Recent verdicts" table and the verdict detail page run on **mock-fallback**
+  in live mode. This is expected — verdicts are produced inside the Phase-4 loop,
+  not served from a list endpoint yet.
+- **`GET /runs/{id}` trace rows don't carry latency.** The `trace_records` D1 row
+  has `input_preview`/`output_preview` but `metadata_json` only stores the hmac
+  algorithm — so `StepTimeline` shows `latency_ms` only when present (mock data has
+  it; live data degrades gracefully).
+- **No `next lint` in Next 16** — it was removed. Lint runs ESLint directly
+  (`"lint": "eslint ."`) against an ESLint-9 **flat config** (`eslint.config.mjs`)
+  that imports `eslint-config-next`'s native flat array directly. (FlatCompat +
+  `next/core-web-vitals` throws "Converting circular structure to JSON" with the v16
+  plugins — use the native flat export, not the legacy `extends` path.)
+- **pnpm build approval:** a supply-chain policy hook adds `allowBuilds:` to the
+  root `pnpm-workspace.yaml`. Both `unrs-resolver` (optional eslint import-resolver
+  binary; JS fallback works) and `sharp` (Next 16's `next/image` optimizer — unused
+  here) are set to `false`. Without an explicit decision, `pnpm <script>`'s pre-run
+  check fails with `ERR_PNPM_IGNORED_BUILDS`.
 
 ## Commands
 
 ```bash
-cd packages/dashboard && pnpm dev          # start dev server on port 3001
-cd packages/dashboard && pnpm build        # production build
-cd packages/dashboard && pnpm test         # run vitest
-cd packages/dashboard && pnpm typecheck    # tsc --noEmit
-cd packages/dashboard && pnpm lint         # eslint
+pnpm --filter dashboard dev          # dev server on :3001
+pnpm --filter dashboard build        # production build (zero errors)
+pnpm --filter dashboard typecheck    # tsc --noEmit (zero errors)
+pnpm --filter dashboard lint         # eslint . (flat config, clean)
+# Demo any screen offline: append ?mock=true, e.g. /verdicts/<run_id>?mock=true
 ```
-
-## Known Gotchas
-
-- **The eval-engine API runs on port 8000, the dashboard on 3001.** Set `NEXT_PUBLIC_EVAL_API_URL=http://localhost:8000` in your `.env.local` for local dev.
-- **ExecutionGraph can have 20+ nodes for a complex run.** Use a virtual list or pagination if the graph becomes slow. But for the hackathon demo, keep agent runs under 15 steps so this isn't an issue.
-- **Replay inject mode modifies state on the flight-recorder side.** The dashboard just sends the modification; the replay engine applies it. This is intentional — the dashboard is display-only.

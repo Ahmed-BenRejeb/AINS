@@ -1,67 +1,54 @@
 # dashboard
 
-**The human interface for all of Sentinel.**
-A Next.js app providing a unified view: execution graphs, verdict details, replay timelines, drift charts, and incident status. This is what judges see during the demo.
+**The unified human interface for Sentinel.**
+A Next.js 16 (App Router, Turbopack) app that shows judges the whole system at a glance:
+overview/health, recorded agent runs, per-run execution traces, eval verdicts with
+failure attribution, and deterministic replay/bisect. Dark, premium dev-tool feel
+(Vercel/Linear), Framer Motion throughout. Pure display layer — produces no data.
 
----
+Runs on **port 3001**.
 
-## What Goes Here
+## Screens
 
-- Next.js App Router pages for each major view (traces, verdicts, replay, incidents)
-- React components: ExecutionGraph, VerdictCard, ReplayTimeline, DriftChart, PassAtKChart
-- Typed API clients for `eval-engine` (port 8000) and `flight-recorder` (port 8001)
-- TypeScript type imports from `trace-core` (re-exported, never redefined)
+| Route | Purpose |
+|---|---|
+| `/` | Overview: stats (Total Runs, Pass Rate, pass^k, Flagged), recent verdicts, flag alert |
+| `/runs` | All recorded runs (`GET /runs`) — click a row → trace |
+| `/runs/[run_id]` | Execution trace: manifest + staggered step timeline; Replay / View Verdict |
+| `/verdicts/[run_id]` | Full verdict: PASS/FAIL/UNCERTAIN hero, per-dimension scores, failure attribution, self-eval, replay link |
+| `/replay/[run_id]` | Launch deterministic replay (`POST /replay`) + bisect (`POST /bisect`) |
 
-## What Does NOT Go Here
+Plus `app/api/{replay,bisect}/route.ts` — server-side POST proxies (no browser CORS).
 
-- Business logic, data processing, or AI calls
-- Database queries or direct Cloudflare API calls
-- Any Python code
+## `?mock=true` — the demo safety net
 
-## Why It Exists
+Append `?mock=true` to **any** page to render from realistic fixtures
+(`lib/mock-data.ts`) that match the live API shapes exactly. In live mode, if a
+service is unreachable the page automatically falls back to mock data — so a screen
+never breaks during judging. A `DataSourceBadge` shows whether you're seeing
+`LIVE`, `MOCK DATA`, or `MOCK (fallback)`. All fetches are server-side.
 
-The dashboard consumes data from multiple packages but produces none. It is a pure display layer. Keeping it separate means one teammate can own it completely without blocking backend work, and backend changes don't require touching frontend code.
+> Note: the eval engine currently exposes only `/health` + `POST /evaluate`, so the
+> verdict screens run on mock-fallback in live mode until a `GET /verdicts` endpoint
+> exists. The UI already tries it and will light up automatically when it does.
 
-## Design Priority for the Hackathon
+## Stack
 
-**Working > Clear > Polished.** In that order. Use `shadcn/ui` components throughout for a professional look with minimal custom CSS. Do not spend time on authentication, pagination, or mobile responsiveness — these are irrelevant for the demo.
-
-## Key Demo Screens (Build These First)
-
-1. **Run Detail (Execution Graph)** — the most important demo screen. Shows a run as a step-by-step timeline. Click a step to see full input/output. "Replay" and "View verdict" buttons.
-2. **Verdict Detail** — per-dimension scores, failure attribution ("Step 2, retrieval, confidence 87%"), self-evaluation badge, replay link, recommended action.
-3. **Replay Timeline** — side-by-side diff of original vs. replayed steps, highlighted divergences, inject editor.
-
-## Structure
-
-```
-dashboard/
-├── app/
-│   ├── page.tsx                 overview: recent runs, pass^k chart, alerts
-│   ├── traces/[run_id]/page.tsx execution graph
-│   ├── verdicts/[run_id]/page.tsx verdict detail
-│   ├── replay/[run_id]/page.tsx  replay timeline + inject editor
-│   └── incidents/page.tsx        JSM incident list + RCA status
-├── components/
-│   ├── ExecutionGraph.tsx
-│   ├── VerdictCard.tsx
-│   ├── ReplayTimeline.tsx
-│   ├── DriftChart.tsx
-│   └── PassAtKChart.tsx
-└── lib/
-    ├── api.ts                   typed fetch wrappers
-    └── types.ts                 re-exports from trace-core (no duplication)
-```
+Next.js 16 App Router · Tailwind CSS · hand-rolled shadcn-style primitives
+(`components/ui/*`) · Framer Motion · lucide-react. Fonts use system stacks (no
+remote font host), so the build is fully offline-safe. Types in `lib/types.ts`
+mirror `trace-core/schema.ts`.
 
 ## Setup
 
 ```bash
-cd packages/dashboard
-pnpm install
-pnpm dev          # dev server on port 3001
-pnpm build
-pnpm test
-pnpm typecheck
+pnpm --filter dashboard install
+pnpm --filter dashboard dev        # dev server on :3001
+pnpm --filter dashboard build      # production build
+pnpm --filter dashboard typecheck  # tsc --noEmit
+pnpm --filter dashboard lint
 ```
 
-Set `NEXT_PUBLIC_EVAL_API_URL=http://localhost:8000` in `packages/dashboard/.env.local` for local dev.
+Override service URLs per-env with `NEXT_PUBLIC_FLIGHT_RECORDER_URL`,
+`NEXT_PUBLIC_EVAL_ENGINE_URL`, `NEXT_PUBLIC_FORGE_REMOTE_URL`,
+`NEXT_PUBLIC_LANGFUSE_URL` (defaults are the live production URLs).
