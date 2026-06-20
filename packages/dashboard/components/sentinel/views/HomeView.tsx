@@ -25,6 +25,11 @@ const PIPELINE = [
   { tag: "UC3", name: "Atlassian Agent", desc: "verdicts land as Jira incidents" },
 ];
 
+/**
+ * Overview screen: hero + UC pipeline, a flag-for-human alert banner, the animated
+ * stats row, and the most-recent verdicts table. Receives server-fetched data and
+ * its provenance; all animation/interactivity lives here on the client.
+ */
 export function HomeView({
   stats,
   summaries,
@@ -161,7 +166,10 @@ export function HomeView({
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                      <TableCell
+                        suppressHydrationWarning
+                        className="text-right font-mono text-xs tabular-nums text-muted-foreground"
+                      >
                         {timeAgo(v.timestamp)}
                       </TableCell>
                     </motion.tr>

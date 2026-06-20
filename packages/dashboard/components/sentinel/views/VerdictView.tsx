@@ -6,6 +6,10 @@ import { VerdictCard } from "../VerdictCard";
 import type { DataSource, EvalVerdict } from "@/lib/types";
 import { withMock } from "@/lib/utils";
 
+/**
+ * Verdict detail screen: a page header (run id + trial) wrapping the full
+ * {@link VerdictCard}. Receives the server-fetched verdict and its data-source.
+ */
 export function VerdictView({
   verdict,
   source,
