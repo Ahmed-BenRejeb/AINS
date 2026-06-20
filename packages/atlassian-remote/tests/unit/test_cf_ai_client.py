@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from atlassian_remote import cf_ai_client
 from pytest_httpx import HTTPXMock
 
@@ -33,3 +35,19 @@ async def test_cf_ai_chat_defaults_to_empty_string(httpx_mock: HTTPXMock) -> Non
     httpx_mock.add_response(json={"result": {}})
 
     assert await cf_ai_client.cf_ai_chat([{"role": "user", "content": "x"}]) == ""
+
+
+async def test_cf_ai_chat_serializes_json_mode_dict_response(httpx_mock: HTTPXMock) -> None:
+    """CF auto-parses JSON output: a dict `response` is re-serialized to a JSON string.
+
+    Reproduces the live Llama 3.3 70B behaviour that broke RCA generation — the
+    model's JSON object comes back as a dict, not a string.
+    """
+    httpx_mock.add_response(
+        json={"result": {"response": {"root_cause_hypothesis": "x", "confidence_score": 0.5}}}
+    )
+
+    out = await cf_ai_client.cf_ai_chat([{"role": "user", "content": "analyse"}])
+
+    assert isinstance(out, str)
+    assert json.loads(out) == {"root_cause_hypothesis": "x", "confidence_score": 0.5}

@@ -13,6 +13,7 @@ real network call is made.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
@@ -73,8 +74,27 @@ async def cf_ai_chat(
         model or model_main(),
         {"messages": messages, "max_tokens": max_tokens},
     )
-    response: str = result.get("response", "")
-    return response
+    return _response_text(result)
+
+
+def _response_text(result: dict[str, Any]) -> str:
+    """Extract the chat response as text, normalizing CF's JSON-mode output.
+
+    Cloudflare Workers AI auto-parses JSON the model emits, so ``result.response``
+    comes back as a ``dict``/``list`` (not a ``str``) whenever the model outputs
+    valid JSON — which the judge rubric always asks it to do. Re-serialize those so
+    the ``-> str`` contract holds and the judge can ``model_validate_json`` it.
+
+    Args:
+        result: The ``result`` object from a Workers AI chat response.
+
+    Returns:
+        The judge's response as a string (JSON text when CF parsed it).
+    """
+    response = result.get("response", "")
+    if isinstance(response, str):
+        return response
+    return json.dumps(response)
 
 
 async def cf_ai_embed(texts: list[str]) -> list[list[float]]:
