@@ -9,7 +9,7 @@ import pytest
 from eval_engine import cf_ai_client
 from eval_engine.config import JUDGE_DIMENSIONS
 from eval_engine.models import SafetyResult
-from eval_engine.verdicts import reporter
+from eval_engine.verdicts import atlassian_client, reporter
 from trace_core import TraceRecord
 
 
@@ -61,6 +61,23 @@ async def test_failing_trace_attributes_to_retrieval_step2(
     assert verdict.failure_attribution.step == 2
     assert verdict.failure_attribution.component == "retrieval"
     assert verdict.self_evaluation.self_critique
+
+
+async def test_file_issue_failure_does_not_break_evaluation(
+    monkeypatch: pytest.MonkeyPatch, trace_pass: list[TraceRecord]
+) -> None:
+    """A Jira filing error is swallowed — evaluate_run still returns the verdict."""
+    _mock_cf(monkeypatch, safe=True, judge_score=0.3)  # low score → fail → triggers filing
+
+    async def boom(summary: str, description: str) -> str | None:
+        raise RuntimeError("jira 400 Bad Request")
+
+    monkeypatch.setattr(atlassian_client, "create_eval_issue", boom)
+
+    verdict = await reporter.evaluate_run("run-x", 0, trace_pass, file_issue=True)
+
+    assert verdict.verdict == "fail"
+    assert verdict.self_evaluation is not None
 
 
 async def test_unsafe_trace_short_circuits_to_fail(

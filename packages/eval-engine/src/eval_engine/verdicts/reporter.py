@@ -9,6 +9,8 @@ files an Incident in the AO Jira project.
 
 from __future__ import annotations
 
+import logging
+
 from trace_core import (
     CONFIDENCE_THRESHOLD,
     DimensionScore,
@@ -27,6 +29,8 @@ from ..graders.safety_filter import check_safety
 from ..models import CodeGraderResult, JudgeVerdict
 from ..transcript import build_transcript
 from . import atlassian_client
+
+logger = logging.getLogger("eval_engine.verdicts.reporter")
 
 _SAFETY_COMPONENT = "safety"
 
@@ -132,7 +136,13 @@ async def evaluate_run(
 
 
 async def _file_issue(verdict: EvalVerdict) -> None:
-    """File a Jira Incident summarising a failed/flagged verdict (best-effort)."""
+    """File a Jira Incident summarising a failed/flagged verdict (best-effort).
+
+    The verdict is the product; filing the issue is a side effect. A Jira outage
+    or rejection (e.g. a misconfigured project) must never fail evaluation — which
+    would null the ``eval_verdict`` in the caller's ``/analyze`` response — so every
+    error here is logged and swallowed.
+    """
     summary = (
         f"Sentinel eval {verdict.verdict}: {verdict.run_id[:8]} (trial {verdict.trial_number})"
     )
@@ -143,4 +153,7 @@ async def _file_issue(verdict: EvalVerdict) -> None:
         f"Judge confidence: {verdict.self_evaluation.judge_confidence:.2f}\n"
         f"Self-critique: {verdict.self_evaluation.self_critique}"
     )
-    await atlassian_client.create_eval_issue(summary, description)
+    try:
+        await atlassian_client.create_eval_issue(summary, description)
+    except Exception as exc:  # best-effort: a Jira failure must not fail evaluation
+        logger.warning("failed to file eval Jira issue for run %s: %s", verdict.run_id, exc)
