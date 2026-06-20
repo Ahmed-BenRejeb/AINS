@@ -146,6 +146,11 @@ seed: ## Seed Atlassian dev site with 100 synthetic incidents + 20 runbooks
 	$(UV) run python scripts/seed_atlassian.py
 	@echo "✓ Seeding complete."
 
+seed-xqdrant: ## Embed AO incidents + SENT runbooks (BGE-768) and load into xqdrant
+	@echo "→ Seeding xqdrant from Jira AO + Confluence SENT..."
+	$(UV) run python scripts/seed_xqdrant.py
+	@echo "✓ xqdrant seeding complete."
+
 eval: ## Run the eval suite — outputs pass^k report to stdout + docs/eval_report.md
 	@echo "→ Running eval suite (k=8 trials)..."
 	$(UV) run python scripts/run_synthetic_eval.py --k 8 --output docs/eval_report.md
