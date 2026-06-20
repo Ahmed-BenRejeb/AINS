@@ -13,13 +13,14 @@ Everything that the Forge sandbox cannot run: text embedding, vector search, and
 - RCA generator (CF Workers AI Llama 3.3 70B, structured Pydantic output)
 - Shared CF Workers AI client (`cf_ai_client.py` — chat + embed)
 - Shared Atlassian REST client (with exponential backoff for 429s)
+- The Phase 4 loop glue: records each `/analyze` run with UC2 (`recording.py`) and hands the `run_id` to UC1 for judging (`eval_client.py`)
 
 ## What Does NOT Go Here
 
 - Forge/Atlassian SDK code — that is `atlassian-agent` (TypeScript, Forge sandbox)
 - Trace capture — that is `flight-recorder`
 - Verdict production — that is `eval-engine`
-- Blob storage — none of the four endpoints need it, so there is no MinIO client here (MinIO lives in `flight-recorder`)
+- A MinIO client of its own — `/analyze` *does* write cassettes to MinIO, but it does so through the `flight-recorder` package (a workspace dependency), not a local `minio_client.py`
 
 ## Why It Exists (and Why It's Separate from `atlassian-agent`)
 
@@ -36,13 +37,15 @@ atlassian-remote/
 │   ├── cf_ai_client.py          CF Workers AI calls (chat + embed)
 │   ├── vector_search.py         xqdrant queries (localhost:6333, internal only)
 │   ├── rca_generator.py         CF Workers AI RCA drafting (structured RcaDraft output)
-│   ├── analyzer.py              /analyze orchestration (fetch → embed+search → draft)
+│   ├── analyzer.py              /analyze loop: fetch → record → embed+search → draft → manifest → eval
+│   ├── recording.py             RunRecorder (UC2 AsyncRecordingTransport) + run-manifest write
+│   ├── eval_client.py           POST run_id → eval-engine /evaluate → EvalVerdict (best-effort)
 │   ├── atlassian_client.py      Atlassian REST client with 429 backoff
-│   └── models.py                AnalyzeResult response envelope
+│   └── models.py                AnalyzeResult envelope (+ run_id, eval_verdict, replay_link)
 └── tests/
     ├── conftest.py              dummy env; all external calls mocked (pytest-httpx)
     ├── unit/                    cf_ai_client / atlassian_client / vector_search / rca_generator / analyzer
-    └── integration/             FastAPI route tests (auth + happy paths)
+    └── integration/             FastAPI route tests + test_full_loop (record→eval, all mocked)
 ```
 
 ## Setup and Run

@@ -25,7 +25,8 @@ eval-engine/
 │   ├── config.py                env-driven config: models, thresholds, Atlassian fields
 │   ├── models.py                local result models: SafetyResult, CodeGraderResult, JudgeVerdict
 │   ├── transcript.py            render a run's TraceRecords into a judge/safety transcript
-│   ├── trace_loader.py          fetch + reconstruct a run trace from the flight recorder
+│   ├── cassette_store.py        boto3 read of the full run cassette from MinIO (non-lossy)
+│   ├── trace_loader.py          load a run trace — cassette first, D1 previews as fallback
 │   ├── graders/
 │   │   ├── code_grader.py       fast deterministic checks (schema, tool calls, outcome, loop, tokens)
 │   │   ├── llm_judge.py         CF Workers AI Llama judge — rubric scoring + position-bias calibration
@@ -35,10 +36,10 @@ eval-engine/
 │   ├── metrics/
 │   │   └── pass_at_k.py         pass^k metric (k=8, τ-bench standard) + consistency_rate
 │   └── verdicts/
-│       ├── reporter.py          orchestrates the pipeline → EvalVerdict; files Jira issue
+│       ├── reporter.py          orchestrates the pipeline → EvalVerdict; files Jira issue (best-effort)
 │       └── atlassian_client.py  minimal Jira create-issue (AO, type id 10013, no priority/labels)
 └── tests/
-    ├── test_code_grader.py / test_llm_judge.py / test_pass_at_k.py / test_reporter.py
+    ├── test_code_grader / test_llm_judge / test_pass_at_k / test_reporter / test_trace_loader / test_cf_ai_response
     └── fixtures/
         ├── trace_pass.json      trace that should pass
         └── trace_fail_step2.json trace that should fail at step 2 (retrieval)
@@ -138,9 +139,12 @@ verdict = await evaluate_run(run_id, trial_number=0, records=records)
 # verdict.verdict ∈ {"pass","fail","uncertain"}; verdict.failure_attribution; verdict.self_evaluation
 ```
 
-## Status (19 Jun 2026)
+## Status (20 Jun 2026)
 
-Core pipeline built and green: `make test-uc1` passes (19 tests, 74% cov);
-ruff/black/isort/mypy --strict clean. Not yet wired: live trace loading from the
-flight recorder's full cassettes (`trace_loader` currently reconstructs from D1
-row previews) and the drift detector.
+Core pipeline built, green, and **live-validated** by the Phase 4 loop: `make
+test-uc1` passes (26 tests); ruff/black/isort/mypy --strict clean. `trace_loader`
+now loads the **full MinIO cassette** via `cassette_store` (D1 row previews are the
+fallback only). Jira filing in `reporter._file_issue` is **best-effort** (a Jira
+outage/rejection no longer fails `/evaluate`). `cf_ai_chat` re-serializes CF Workers
+AI's JSON-mode dict response to a string so the judge can `model_validate_json` it.
+Not yet built: the drift detector (`drift/detector.py` + `embedder.py`).

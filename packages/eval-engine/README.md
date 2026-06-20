@@ -48,7 +48,8 @@ eval-engine/
 │   ├── config.py                env-driven config: models, thresholds, Atlassian fields
 │   ├── models.py                SafetyResult, CodeGraderResult, JudgeVerdict
 │   ├── transcript.py            render TraceRecords → transcript for the graders
-│   ├── trace_loader.py          reconstruct a run trace from the flight recorder
+│   ├── cassette_store.py        boto3 read of the full run cassette from MinIO
+│   ├── trace_loader.py          load a run trace — cassette first, D1 previews fallback
 │   ├── graders/
 │   │   ├── code_grader.py       fast deterministic checks
 │   │   ├── llm_judge.py         CF Workers AI Llama judge + position-bias calibration

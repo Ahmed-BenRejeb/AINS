@@ -7,7 +7,7 @@ Defines the Rovo AI Agent and its Actions. This is the only code that runs insid
 
 ## What Goes Here
 
-- The Forge app manifest (`forge.yml`) defining the `rovo:agent` plus its `action` / `function` modules
+- The Forge app manifest (`manifest.yml`) defining the `rovo:agent` plus its `action` / `function` modules
 - Action handlers: fetch-incident, search-similar-incidents, search-runbooks, post-rca-comment, draft-pir-page, flag-knowledge-gap
 - Atlassian API wrappers (`@forge/api` — Jira, Confluence, JSM calls)
 - The Forge Remote HTTP client (delegates heavy compute to `atlassian-remote`)
@@ -28,7 +28,7 @@ Forge apps are TypeScript-only, run inside Atlassian's sandboxed AWS environment
 
 ```
 atlassian-agent/
-├── forge.yml               Forge manifest: rovo:agent + 6 action + 6 function modules
+├── manifest.yml            Forge manifest: rovo:agent + 6 action + 6 function modules
 ├── package.json
 ├── tsconfig.json           strict TypeScript — "strict": true
 ├── jest.config.js          ts-jest; @forge/api manual mock auto-applies

@@ -23,10 +23,11 @@ flight-recorder/
 ├── src/flight_recorder/
 │   ├── config.py                 FLIGHT_MODE resolution, CF-URL detection, genesis hash
 │   ├── exceptions.py             CassetteMissError (replay never falls back to a live call)
+│   ├── manifest.py               write_run_manifest() — one run_manifests D1 row per run
 │   ├── proxy/
-│   │   ├── llm_proxy.py          RecordingTransport — httpx transport, intercepts CF AI calls
+│   │   ├── llm_proxy.py          RecordingTransport (sync) + AsyncRecordingTransport — intercept CF AI calls
 │   │   ├── mcp_interceptor.py    @record_tool decorator — tool/function call interceptor
-│   │   └── cassette.py           cassette read/write + request normalization (reuses trace_core)
+│   │   └── cassette.py           cassette read/write (steps + full `records`) + normalization
 │   ├── replay/
 │   │   ├── engine.py             replay_run() — re-executes with replay transport, 0 live calls
 │   │   └── bisect.py             bisect_runs() — first diverging step between two runs
@@ -35,8 +36,16 @@ flight-recorder/
 │   │   └── minio_client.py       cassette blobs → MinIO (NOT R2)
 │   └── audit/
 │       └── hash_chain.py         write_audit_record() — hash-chained HMAC receipts
-└── tests/                        test_cassette/llm_proxy/hash_chain/replay/mcp_interceptor/bisect
+└── tests/                        test_cassette/llm_proxy/async_llm_proxy/hash_chain/replay/mcp_interceptor/bisect
 ```
+
+> **`AsyncRecordingTransport`** is the async analogue of `RecordingTransport` (UC3's
+> `cf_ai_client` uses `httpx.AsyncClient`); both share all record/replay logic via a
+> `_RecordingCore` mixin. `close()`/`aclose()` reset the inner transport so one recorder
+> survives the several short-lived clients the analyze flow opens — the audit chain links
+> across them. The cassette now stores, per step, both the response (`steps`, for replay)
+> **and** the step's full `TraceRecord` (`records`, the non-lossy trace the eval engine
+> loads). `manifest.write_run_manifest(RunManifest)` writes the per-run summary row.
 
 ## Blob Storage — MinIO (NOT Cloudflare R2)
 

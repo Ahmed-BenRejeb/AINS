@@ -297,7 +297,7 @@ async def incident_rca_workflow(incident_id: str) -> RCAResult:
 ### Forge Rovo Agent Structure
 
 ```yaml
-# forge.yml
+# manifest.yml
 modules:
   rovo:agent:
     - key: incident-rca-agent

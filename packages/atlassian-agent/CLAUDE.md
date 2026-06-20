@@ -25,7 +25,7 @@ Forge Remote URL:  https://remote.ahmedxsaad.me
 
 ```
 atlassian-agent/
-├── forge.yml              Forge manifest: 1 rovo:agent + 6 action + 6 function modules
+├── manifest.yml           Forge manifest: 1 rovo:agent + 6 action + 6 function modules
 ├── package.json
 ├── tsconfig.json          strict TypeScript ("strict": true, noUncheckedIndexedAccess)
 ├── jest.config.js         ts-jest; roots=tests/ so the @forge/api manual mock auto-applies
