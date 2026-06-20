@@ -13,7 +13,7 @@
 | **Eval system** | Sentinel UC1 — Continuous Evaluation Engine |
 | **Test dataset** | 100 synthetic JSM incidents (seeded via `make seed`) |
 | **Evaluation date** | _(generated)_ |
-| **Evaluator model** | `claude-sonnet-4-6` |
+| **Evaluator model** | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (Cloudflare Workers AI) |
 | **k (for pass^k)** | 8 independent trials per task |
 
 ---
@@ -51,7 +51,7 @@
 | Grader | Runs Used | Agreement with Ground Truth |
 |---|---|---|
 | Code grader | 800 | —% |
-| LLM judge (Claude) | 800 | —% |
+| LLM judge (Llama 3.3 70B) | 800 | —% |
 | Safety filter (Llama Guard 3) | 800 | —% |
 
 ### Judge Calibration
@@ -122,7 +122,7 @@ The Sentinel eval system addresses non-determinism in two ways:
 ## Limitations
 
 - Test dataset is synthetic, not from a real enterprise environment
-- The LLM judge (Claude) is not independently validated against human annotations
+- The LLM judge (Llama 3.3 70B) is not independently validated against human annotations
 - Drift detection baseline is derived from the same synthetic dataset used for evaluation
 - pass^k with k=8 may not reflect true production reliability at higher k values
 
