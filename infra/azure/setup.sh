@@ -135,6 +135,33 @@ StandardError=append:/srv/sentinel/logs/atlassian-remote.log
 WantedBy=multi-user.target
 EOF
 
+# ── systemd service: sentinel-dashboard ───────────────────────────────────────
+# Next.js dashboard (UI). Build it first: `pnpm --filter dashboard build`. Server-
+# side fetches use localhost so the UI shows live data without the public tunnel hop;
+# clickable links (replay deep-link, Langfuse) stay on the public NEXT_PUBLIC_* URLs.
+echo "→ Creating systemd service: sentinel-dashboard..."
+sudo tee /etc/systemd/system/sentinel-dashboard.service > /dev/null << EOF
+[Unit]
+Description=Sentinel Dashboard (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=${USER}
+WorkingDirectory=/srv/sentinel/dashboard
+Environment=NODE_ENV=production
+Environment=FLIGHT_RECORDER_INTERNAL_URL=http://localhost:8001
+Environment=EVAL_ENGINE_INTERNAL_URL=http://localhost:8000
+ExecStart=/usr/bin/node /srv/sentinel/dashboard/node_modules/next/dist/bin/next start -p 3001
+Restart=always
+RestartSec=5
+StandardOutput=append:/srv/sentinel/logs/dashboard.log
+StandardError=append:/srv/sentinel/logs/dashboard.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 # ── systemd service: cloudflared ──────────────────────────────────────────────
 echo "→ Creating systemd service: cloudflared..."
 sudo tee /etc/systemd/system/cloudflared.service > /dev/null << EOF
@@ -156,7 +183,7 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable sentinel-eval sentinel-remote cloudflared
+sudo systemctl enable sentinel-eval sentinel-remote sentinel-dashboard cloudflared
 
 echo ""
 echo "=== Setup complete ==="
@@ -165,9 +192,13 @@ echo "Next steps:"
 echo "  1. Create Cloudflare Tunnel: cloudflared tunnel login && cloudflared tunnel create sentinel"
 echo "  2. Edit /srv/sentinel/langfuse/.env with your domain"
 echo "  3. Start Langfuse: cd /srv/sentinel/langfuse && docker compose up -d"
-echo "  4. Copy your package code to /srv/sentinel/{eval-engine,atlassian-remote}"
+echo "  4. Copy your package code to /srv/sentinel/{eval-engine,atlassian-remote,dashboard}"
 echo "  5. Copy .env to /srv/sentinel/.env"
-echo "  6. Start services: sudo systemctl start sentinel-eval sentinel-remote cloudflared"
+echo "  6. Build the dashboard: cd /srv/sentinel/dashboard && pnpm install && pnpm build"
+echo "  7. Add tunnel ingress hostnames in ~/.cloudflared/config.yml (one per service:"
+echo "     langfuse:3000 eval:8000 remote:8080 flight:8001 dashboard:3001) and create the"
+echo "     DNS routes, e.g.: cloudflared tunnel route dns sentinel dashboard.ahmedxsaad.me"
+echo "  8. Start services: sudo systemctl start sentinel-eval sentinel-remote sentinel-dashboard cloudflared"
 echo ""
 echo "  Note: log out and back in (or run 'newgrp docker') so your user picks up"
 echo "        the docker group before running docker compose."

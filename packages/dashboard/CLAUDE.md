@@ -81,7 +81,10 @@ so demo mode survives navigation.
 
 ## Service URLs / Env
 
-Defaults are the live production URLs; override per-env with `NEXT_PUBLIC_*`:
+Two layers (see `lib/api.ts`):
+
+**Public URLs** — used for human-clickable links (replay deep-link, Langfuse).
+Defaults are the live production URLs; override with `NEXT_PUBLIC_*`:
 
 | Env var | Default |
 |---|---|
@@ -90,8 +93,33 @@ Defaults are the live production URLs; override per-env with `NEXT_PUBLIC_*`:
 | `NEXT_PUBLIC_FORGE_REMOTE_URL` | `https://remote.ahmedxsaad.me` |
 | `NEXT_PUBLIC_LANGFUSE_URL` | `https://langfuse.ahmedxsaad.me` |
 
-(These are read in TS, not Python, so `check_docs.py`'s `.env.example` parity check
-— which only scans `.py` — does not require them.)
+**Internal bases** — used for **server-side fetches only** (never sent to the
+browser); default to the public URL when unset:
+
+| Env var | Purpose | VM value |
+|---|---|---|
+| `FLIGHT_RECORDER_INTERNAL_URL` | server-fetch `/runs`, `/runs/{id}`, `/replay`, `/bisect` | `http://localhost:8001` |
+| `EVAL_ENGINE_INTERNAL_URL` | server-fetch `/verdicts[/{id}]` | `http://localhost:8000` |
+
+On the Azure VM the `sentinel-dashboard` systemd unit sets the two internal vars to
+localhost so the dashboard talks to the services directly (real data, no tunnel hop)
+while clickable links stay public.
+
+(All read in TS, not Python, so `check_docs.py`'s `.env.example` parity check — which
+only scans `.py` — does not require them.)
+
+## Deployment (Azure VM)
+
+- Built (`pnpm --filter dashboard build`) then served by the **`sentinel-dashboard`**
+  systemd unit: `node node_modules/next/dist/bin/next start -p 3001`, enabled +
+  auto-restart, logs to `/srv/sentinel/logs/dashboard.log`.
+- Exposed at **`https://dashboard.ahmedxsaad.me`** via the `sentinel` Cloudflare
+  tunnel: an ingress rule `dashboard.ahmedxsaad.me → http://localhost:3001` in
+  `~/.cloudflared/config.yml` + a proxied DNS CNAME
+  (`cloudflared tunnel route dns sentinel dashboard.ahmedxsaad.me`).
+- The zone enforces a Cloudflare **managed/bot challenge**, so `curl` gets
+  `403 cf-mitigated: challenge` while browsers pass — a shell 403 is **not** an outage.
+- After a rebuild: `sudo systemctl restart sentinel-dashboard`.
 
 ## Known Gotchas
 
