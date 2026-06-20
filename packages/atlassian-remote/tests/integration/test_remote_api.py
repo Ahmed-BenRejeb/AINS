@@ -97,8 +97,16 @@ def test_search_rejects_wrong_secret(client: TestClient) -> None:
 
 
 def test_analyze_happy_path(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """/analyze returns a serialised AnalyzeResult containing a valid RcaDraft."""
-    result = AnalyzeResult(rca_draft=_draft(), similar=[_hit()], runbooks=[], flag_for_human=False)
+    """/analyze returns a serialised AnalyzeResult with the integration envelope."""
+    result = AnalyzeResult(
+        run_id="run-abc",
+        rca_draft=_draft(),
+        similar=[_hit()],
+        runbooks=[],
+        flag_for_human=False,
+        eval_verdict=None,
+        replay_link="https://flight.ahmedxsaad.me/runs/run-abc",
+    )
 
     async def fake_analyze(incident_key: str, requested_by: str) -> AnalyzeResult:
         return result
@@ -111,10 +119,12 @@ def test_analyze_happy_path(client: TestClient, monkeypatch: pytest.MonkeyPatch)
 
     assert response.status_code == 200
     body = response.json()
+    assert body["run_id"] == "run-abc"
     assert body["rca_draft"]["proposed_severity"] == "high"
     assert body["rca_draft"]["confidence_score"] == 0.82
     assert body["similar"][0]["id"] == "INC-1"
     assert body["flag_for_human"] is False
+    assert body["replay_link"] == "https://flight.ahmedxsaad.me/runs/run-abc"
 
 
 def test_search_happy_path(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

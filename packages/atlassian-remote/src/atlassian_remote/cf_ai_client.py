@@ -13,6 +13,9 @@ real network call is made.
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -26,6 +29,32 @@ from .config import (
     model_main,
 )
 
+# Task-local recording transport. When set (by the analyzer's RunRecorder), every
+# CF Workers AI call this client makes is routed through the flight recorder's
+# AsyncRecordingTransport and taped into the run's cassette. ``None`` → httpx uses
+# its default transport (live, unrecorded), so /search and /embed are unaffected.
+_active_transport: contextvars.ContextVar[httpx.AsyncBaseTransport | None] = contextvars.ContextVar(
+    "cf_ai_active_transport", default=None
+)
+
+
+@contextlib.contextmanager
+def using_transport(transport: httpx.AsyncBaseTransport | None) -> Iterator[None]:
+    """Route this client's CF Workers AI calls through ``transport`` for the block.
+
+    Used by the analyzer to capture RCA-generation LLM calls into a cassette. The
+    contextvar is reset on exit, so the binding is scoped to the ``with`` block and
+    safe under concurrency.
+
+    Args:
+        transport: The flight recorder's recording transport, or ``None`` to clear.
+    """
+    token = _active_transport.set(transport)
+    try:
+        yield
+    finally:
+        _active_transport.reset(token)
+
 
 async def _post(model: str, payload: dict[str, Any]) -> dict[str, Any]:
     """POST a payload to a Workers AI model and return its ``result`` object.
@@ -37,7 +66,9 @@ async def _post(model: str, payload: dict[str, Any]) -> dict[str, Any]:
     Returns:
         The ``result`` object from the Workers AI response envelope.
     """
-    async with httpx.AsyncClient(timeout=CF_TIMEOUT_SECONDS) as client:
+    async with httpx.AsyncClient(
+        timeout=CF_TIMEOUT_SECONDS, transport=_active_transport.get()
+    ) as client:
         response = await client.post(
             f"{cf_ai_url()}/{model}",
             headers={"Authorization": f"Bearer {cf_api_token()}"},

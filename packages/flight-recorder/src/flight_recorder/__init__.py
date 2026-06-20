@@ -13,12 +13,14 @@ from __future__ import annotations
 
 from .config import resolve_mode
 from .exceptions import CassetteMissError, FlightRecorderError
-from .proxy.llm_proxy import RecordingTransport
+from .manifest import write_run_manifest
+from .proxy.llm_proxy import AsyncRecordingTransport, RecordingTransport
 from .proxy.mcp_interceptor import record_tool
 from .replay.bisect import BisectResult, bisect_runs
 from .replay.engine import Divergence, ReplayResult, replay_run
 
 __all__ = [
+    "AsyncRecordingTransport",
     "BisectResult",
     "CassetteMissError",
     "Divergence",
@@ -29,4 +31,5 @@ __all__ = [
     "record_tool",
     "replay_run",
     "resolve_mode",
+    "write_run_manifest",
 ]

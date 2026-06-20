@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from atlassian_remote import analyzer, rca_generator, vector_search
+from atlassian_remote import analyzer, eval_client, rca_generator, recording, vector_search
 from atlassian_remote.atlassian_client import AtlassianClient
-from trace_core import Attribution, RcaDraft, SearchResult
+from trace_core import Attribution, EvalVerdict, RcaDraft, SearchResult, SelfEvaluation
 
 _ISSUE = {
     "key": "AO-1",
@@ -64,8 +64,22 @@ def test_extract_incident_text_handles_string_description() -> None:
     assert "raw text body" in analyzer.extract_incident_text(issue)
 
 
+def _verdict(run_id: str) -> EvalVerdict:
+    return EvalVerdict(
+        run_id=run_id,
+        trial_number=0,
+        verdict="pass",
+        dimensions={},
+        self_evaluation=SelfEvaluation(
+            judge_confidence=0.9, self_critique="ok", flag_for_human=False
+        ),
+        replay_link=f"https://flight.ahmedxsaad.me/runs/{run_id}",
+        recommended_action="No action.",
+    )
+
+
 async def test_analyze_incident_orchestrates_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
-    """fetch → search incidents + runbooks → draft → flag, all wired correctly."""
+    """fetch → record → search + draft → manifest → eval → envelope, all wired."""
 
     async def fake_get_issue(_self: AtlassianClient, _key: str) -> dict[str, Any]:
         return _ISSUE
@@ -84,9 +98,29 @@ async def test_analyze_incident_orchestrates_pipeline(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(rca_generator, "generate_rca", fake_generate)
 
+    # Pin the run id and stub the flight-recorder + eval-engine seams (no network).
+    monkeypatch.setattr(recording, "new_run_id", lambda: "run-test-123")
+    manifests: list[dict[str, Any]] = []
+
+    def fake_persist(run_id: str, **kwargs: Any) -> None:
+        manifests.append({"run_id": run_id, **kwargs})
+
+    monkeypatch.setattr(recording, "persist_manifest", fake_persist)
+
+    async def fake_eval(run_id: str) -> EvalVerdict:
+        return _verdict(run_id)
+
+    monkeypatch.setattr(eval_client, "request_evaluation", fake_eval)
+
     result = await analyzer.analyze_incident("AO-1", "acc-123")
 
+    assert result.run_id == "run-test-123"
     assert result.rca_draft.proposed_severity == "high"
     assert [s.id for s in result.similar] == ["INC-1"]
     assert result.runbooks == []
     assert result.flag_for_human is True
+    # The manifest was persisted for the incident, and the eval verdict came back.
+    assert manifests and manifests[0]["task_id"] == "AO-1"
+    assert result.eval_verdict is not None
+    assert result.eval_verdict.verdict == "pass"
+    assert result.replay_link == "https://flight.ahmedxsaad.me/runs/run-test-123"

@@ -18,12 +18,13 @@ from __future__ import annotations
 import functools
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
 from trace_core import FlightMode, hash_step_key, normalize_request
 
-from ..audit.hash_chain import write_audit_record
+from ..audit.hash_chain import sign, write_audit_record
 from ..config import GENESIS_PREV_HASH, resolve_mode
 from ..exceptions import CassetteMissError
 from . import cassette
@@ -94,22 +95,40 @@ def record_tool(run_id: str, mode: FlightMode | None = None) -> Callable[[F], F]
             # record
             result = func(*args, **kwargs)
             stored = {"tool": tool_name, "result": _jsonable(result)}
-            cassette.save_to_cassette(run_id, step_key, stored)
             prev_hash = _PREV_HASH.get(run_id, GENESIS_PREV_HASH)
             sequence = _SEQUENCE.get(run_id, 0)
-            _PREV_HASH[run_id] = write_audit_record(
+            step_id = uuid.uuid4().hex
+            input_data = {
+                "tool": tool_name,
+                "args": [_jsonable(a) for a in args],
+                "kwargs": {k: _jsonable(v) for k, v in kwargs.items()},
+            }
+            payload_hash = write_audit_record(
                 run_id=run_id,
-                step_id=uuid.uuid4().hex,
+                step_id=step_id,
                 kind="tool_call",
-                input_data={
-                    "tool": tool_name,
-                    "args": [_jsonable(a) for a in args],
-                    "kwargs": {k: _jsonable(v) for k, v in kwargs.items()},
-                },
+                input_data=input_data,
                 output_data=stored,
                 prev_hash=prev_hash,
                 sequence=sequence,
             )
+            record = {
+                "run_id": run_id,
+                "step_id": step_id,
+                "sequence": sequence,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "kind": "tool_call",
+                "input": input_data,
+                "output": stored,
+                "metadata": {"tool_name": tool_name},
+                "audit": {
+                    "prev_hash": prev_hash,
+                    "payload_hash": payload_hash,
+                    "hmac": sign(payload_hash),
+                },
+            }
+            cassette.save_to_cassette(run_id, step_key, stored, record=record)
+            _PREV_HASH[run_id] = payload_hash
             _SEQUENCE[run_id] = sequence + 1
             return result
 

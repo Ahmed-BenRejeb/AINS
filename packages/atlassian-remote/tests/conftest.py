@@ -23,3 +23,5 @@ def remote_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("XQDRANT_URL", "http://localhost:6333")
     monkeypatch.setenv("XQDRANT_INCIDENTS_COLLECTION", "incidents")
     monkeypatch.setenv("XQDRANT_RUNBOOKS_COLLECTION", "runbooks")
+    # Flight-recorder audit chain signs records during the recorded analyze run.
+    monkeypatch.setenv("AUDIT_HMAC_KEY", "test-secret-key-0123456789abcdef")

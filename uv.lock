@@ -95,6 +95,7 @@ version = "0.1.0"
 source = { editable = "packages/atlassian-remote" }
 dependencies = [
     { name = "fastapi" },
+    { name = "flight-recorder" },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "qdrant-client" },
@@ -105,6 +106,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.110" },
+    { name = "flight-recorder", editable = "packages/flight-recorder" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "qdrant-client", specifier = ">=1.9" },
@@ -316,6 +318,7 @@ name = "eval-engine"
 version = "0.1.0"
 source = { editable = "packages/eval-engine" }
 dependencies = [
+    { name = "boto3" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "pydantic" },
@@ -325,6 +328,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "boto3", specifier = ">=1.34" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pydantic", specifier = ">=2.0" },

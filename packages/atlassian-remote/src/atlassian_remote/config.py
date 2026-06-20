@@ -128,3 +128,33 @@ BACKOFF_MAX_SECONDS = 8.0
 def forge_remote_secret() -> str:
     """Shared secret every Forge request must present (``FORGE_REMOTE_SECRET``)."""
     return os.environ["FORGE_REMOTE_SECRET"]
+
+
+# ─── Internal service URLs (UC1/UC2 integration) ───────────────────────────────
+
+_DEFAULT_EVAL_ENGINE_URL = "http://localhost:8000"
+"""eval-engine base URL. The default is the internal localhost port — the analyze
+flow calls it VM-to-VM, never the public tunnel (``eval.ahmedxsaad.me``)."""
+
+_DEFAULT_FLIGHT_RECORDER_URL = "https://flight.ahmedxsaad.me"
+"""Flight recorder base URL — used only to build the human-clickable replay deep
+link, so it defaults to the public tunnel, not localhost."""
+
+
+def eval_engine_url() -> str:
+    """Internal eval-engine base URL (``EVAL_ENGINE_URL``; localhost:8000)."""
+    return os.environ.get("EVAL_ENGINE_URL", _DEFAULT_EVAL_ENGINE_URL).rstrip("/")
+
+
+def flight_recorder_url() -> str:
+    """Public flight-recorder base URL (``FLIGHT_RECORDER_URL``) for replay links."""
+    return os.environ.get("FLIGHT_RECORDER_URL", _DEFAULT_FLIGHT_RECORDER_URL).rstrip("/")
+
+
+def replay_link(run_id: str) -> str:
+    """Deep link a human can open to replay a recorded run in the flight recorder."""
+    return f"{flight_recorder_url()}/runs/{run_id}"
+
+
+EVAL_TIMEOUT_SECONDS = 30.0
+"""Per-call timeout for the eval-engine ``/evaluate`` POST."""
