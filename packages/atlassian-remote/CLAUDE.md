@@ -26,33 +26,41 @@ atlassian-remote/
 │   ├── cf_ai_client.py          CF Workers AI calls (cf_ai_chat + cf_ai_embed)
 │   ├── vector_search.py         xqdrant query_points (incidents + runbooks) → SearchResult
 │   ├── rca_generator.py         RCA drafting via CF Workers AI → RcaDraft (+ needs_human_review)
-│   ├── analyzer.py              /analyze orchestration: fetch → embed+search → draft
+│   ├── analyzer.py              /analyze orchestration: fetch → record → embed+search → draft → manifest → eval
+│   ├── recording.py             RunRecorder (binds AsyncRecordingTransport) + persist_manifest (UC2)
+│   ├── eval_client.py           POST run_id to eval-engine /evaluate → EvalVerdict (best-effort)
 │   ├── atlassian_client.py      Atlassian REST client with exponential backoff on 429
 │   └── models.py                AnalyzeResult response envelope (composes trace_core types)
 └── tests/
     ├── conftest.py              dummy env; all external calls mocked
     ├── unit/                    cf_ai_client / atlassian_client / vector_search / rca_generator / analyzer
-    └── integration/             FastAPI route tests (auth + happy paths) via TestClient
+    └── integration/             FastAPI route tests + test_full_loop (record→eval end-to-end, mocked)
 ```
 
-> **`minio_client.py` was not built.** None of `/analyze`, `/search`, `/embed`, `/health`
-> need blob storage, so boto3 is not a dependency of this package (the flight-recorder is
-> the package that uses MinIO). The "MinIO Blob Storage Pattern" below is kept as a
-> reference for if that changes.
+> **No `minio_client.py` of its own.** `/search`, `/embed`, `/health` need no blob
+> storage. `/analyze` *does* record cassettes to MinIO — but it does so through the
+> `flight-recorder` package (a workspace dependency added in Phase 4), so boto3 is a
+> transitive dep, not direct. The "MinIO Blob Storage Pattern" below is reference only.
 
 ## API Endpoints
 
 ```
-POST /analyze   → { incident_key, requested_by } → { rca_draft, similar, runbooks, flag_for_human }
+POST /analyze   → { incident_key, requested_by }
+                → { run_id, rca_draft, similar, runbooks, flag_for_human, eval_verdict, replay_link }
 POST /search    → { query, index, k }            → { results }
 POST /embed     → { texts }                      → { embeddings }
 GET  /health    → { status: "ok" }
 ```
 
-> `/analyze` fetches the incident by key, so `rca_draft` is a `trace_core.RcaDraft` and
-> `flag_for_human` is `confidence_score < CONFIDENCE_THRESHOLD` (0.70) — surfaced on the
-> response envelope, **not** added to the shared `RcaDraft` schema. All routes except
-> `/health` require the `X-Sentinel-Secret` header.
+> `/analyze` is the **Phase 4 end-to-end loop**: it generates a `run_id`, records every
+> embed/RCA CF Workers AI call into a MinIO cassette via UC2's `AsyncRecordingTransport`
+> (hash-chain audit → D1), writes a `run_manifests` row, then POSTs the `run_id` to
+> eval-engine `/evaluate` and returns the `eval_verdict` + a `replay_link`. `rca_draft` is
+> a `trace_core.RcaDraft`; `flag_for_human` is `confidence_score < CONFIDENCE_THRESHOLD`
+> (0.70), surfaced on the envelope (**not** on the shared `RcaDraft` schema). Recording +
+> eval are best-effort (an outage never fails the analysis). Internal calls use localhost
+> (eval `:8000`, MinIO `:9090`); `replay_link` uses the public flight-recorder URL. All
+> routes except `/health` require the `X-Sentinel-Secret` header.
 
 ## LLM Pattern — CF Workers AI (NOT Anthropic SDK)
 

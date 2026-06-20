@@ -97,13 +97,18 @@ packages/
 ```
 trace-core       ← imported by everyone, imports nothing local
 flight-recorder  ← imports trace-core only
-eval-engine      ← imports trace-core only
-atlassian-remote ← imports trace-core only
+eval-engine      ← imports trace-core only (reads cassettes from MinIO over S3, not the package)
+atlassian-remote ← imports trace-core + flight-recorder (records its RCA runs via UC2)
 atlassian-agent  ← imports nothing local (calls atlassian-remote via HTTP)
 dashboard        ← imports trace-core types only (via generated TS types)
 ```
 
-If you want to import `flight-recorder` from inside `eval-engine`: stop. Extract the shared piece into `trace-core` instead.
+`atlassian-remote → flight-recorder` is the one allowed cross-UC package edge: the
+Phase 4 loop *records* every RCA run with UC2's `AsyncRecordingTransport` +
+`write_run_manifest`, so reusing the recorder library (behaviour, not just types) is
+correct. The rule that still holds: never duplicate a **type** — if a schema is shared,
+it goes in `trace-core` (e.g. `eval-engine` reads the cassette blob over S3 rather than
+importing `flight-recorder` to learn its shape).
 
 ---
 

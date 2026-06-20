@@ -5,7 +5,7 @@
  * carries the invoking user's `X-Account-Id` (atlassian-agent CLAUDE.md). Requests
  * are wrapped in {@link withBackoff} so a backend 429 is retried. The backend URL
  * comes from `FORGE_REMOTE_URL` and must also be allow-listed under
- * `permissions.external.fetch.backend` in `forge.yml`.
+ * `permissions.external.fetch.backend` in `manifest.yml`.
  */
 
 import { fetch } from '@forge/api';

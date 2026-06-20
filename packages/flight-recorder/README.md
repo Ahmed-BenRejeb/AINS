@@ -36,10 +36,11 @@ flight-recorder/
 ├── src/flight_recorder/
 │   ├── config.py                FLIGHT_MODE resolution, CF-URL detection, genesis hash
 │   ├── exceptions.py            CassetteMissError (replay never falls back to a live call)
+│   ├── manifest.py              write_run_manifest() — one run_manifests row per run
 │   ├── proxy/
-│   │   ├── llm_proxy.py          RecordingTransport — httpx override, intercepts CF AI calls
+│   │   ├── llm_proxy.py          RecordingTransport (sync) + AsyncRecordingTransport
 │   │   ├── mcp_interceptor.py    @record_tool decorator for tool call interception
-│   │   └── cassette.py           cassette read/write + request normalization
+│   │   └── cassette.py           cassette read/write (steps + full records) + normalization
 │   ├── replay/
 │   │   ├── engine.py             replay orchestrator (asserts zero live calls)
 │   │   └── bisect.py             find first diverging step between two runs
@@ -68,6 +69,19 @@ client = httpx.Client(transport=RecordingTransport(run_id, mode="record"))
 agent(client)                       # every CF Workers AI call is taped into the cassette
 result = replay_run(run_id, agent)  # re-runs against the cassette
 assert result.live_call_count == 0
+```
+
+For an `httpx.AsyncClient` (e.g. UC3's `cf_ai_client`), use `AsyncRecordingTransport` —
+the async analogue. The cassette now keeps, per step, both the response (for replay) and
+the step's full `TraceRecord` (`records`), which is the non-lossy trace `eval-engine`
+loads. `write_run_manifest()` writes the one-row-per-run summary to D1.
+
+```python
+from flight_recorder import AsyncRecordingTransport, write_run_manifest
+
+transport = AsyncRecordingTransport(run_id, mode="record")
+async with httpx.AsyncClient(transport=transport) as client:
+    await agent(client)             # async CF Workers AI calls are taped
 ```
 
 ## Key Environment Variables

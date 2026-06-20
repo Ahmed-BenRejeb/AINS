@@ -1,7 +1,7 @@
 /**
  * Forge function entry points for the Sentinel Rovo agent.
  *
- * Each export is referenced by a `function` module in `forge.yml`
+ * Each export is referenced by a `function` module in `manifest.yml`
  * (`handler: index.<name>`) and backs one Rovo `action`.
  */
 
