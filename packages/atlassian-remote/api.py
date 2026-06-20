@@ -96,7 +96,12 @@ def health() -> dict[str, str]:
 async def analyze(
     request: AnalyzeRequest, account_id: str = Depends(verify_request)
 ) -> AnalyzeResult:
-    """Analyse an incident: retrieve evidence and draft a structured RCA."""
+    """Analyse an incident end-to-end (the Phase 4 loop).
+
+    Retrieves evidence and drafts a structured RCA while the flight recorder tapes
+    every LLM call, then has the eval engine judge the recorded run. Returns the
+    draft, supporting hits, the eval verdict, and a replay deep link.
+    """
     return await analyzer.analyze_incident(request.incident_key, request.requested_by)
 
 

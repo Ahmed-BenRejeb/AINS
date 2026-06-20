@@ -91,10 +91,18 @@ def empty_cassette(run_id: str) -> dict[str, Any]:
         run_id: UUID of the run this cassette belongs to.
 
     Returns:
-        A dict with ``version``, ``run_id``, an empty ``steps`` map, and an
-        ``order`` list that records insertion order for positional bisecting.
+        A dict with ``version``, ``run_id``, an empty ``steps`` map, an ``order``
+        list that records insertion order for positional bisecting, and a
+        ``records`` list holding the full :class:`~trace_core.TraceRecord` for
+        each step (the non-lossy trace the eval engine reconstructs from).
     """
-    return {"version": CASSETTE_VERSION, "run_id": run_id, "steps": {}, "order": []}
+    return {
+        "version": CASSETTE_VERSION,
+        "run_id": run_id,
+        "steps": {},
+        "order": [],
+        "records": [],
+    }
 
 
 def load_cassette(run_id: str) -> dict[str, Any]:
@@ -116,20 +124,34 @@ def load_cassette(run_id: str) -> dict[str, Any]:
     return loaded
 
 
-def save_to_cassette(run_id: str, step_key: str, response: dict[str, Any]) -> None:
+def save_to_cassette(
+    run_id: str,
+    step_key: str,
+    response: dict[str, Any],
+    *,
+    record: dict[str, Any] | None = None,
+) -> None:
     """Record ``response`` under ``step_key`` in the run's cassette.
 
     Read-modify-write: loads the existing cassette (or starts an empty one),
-    stores the response, preserves first-seen order, and writes it back as
-    canonical JSON.
+    stores the response, preserves first-seen order, optionally appends the
+    step's full ``TraceRecord`` to ``records``, and writes it back as canonical
+    JSON.
 
     Args:
         run_id: UUID of the run.
         step_key: Cassette key from :func:`hash_step_key`.
-        response: The response payload to store (JSON-serializable).
+        response: The response payload to store (JSON-serializable). This is what
+            replay returns, so its shape must not change (the cassette is the
+            ``steps`` map for replay/bisect).
+        record: The step's full :class:`~trace_core.TraceRecord` (JSON-mode dict),
+            appended to ``records`` for non-lossy trace reconstruction by the eval
+            engine. ``None`` skips the append (e.g. tests that only exercise replay).
     """
     cassette = load_cassette(run_id)
     if step_key not in cassette["steps"]:
         cassette["order"].append(step_key)
     cassette["steps"][step_key] = response
+    if record is not None:
+        cassette.setdefault("records", []).append(record)
     minio_client.store_blob(_cassette_key(run_id), canonical_json(cassette).encode("utf-8"))

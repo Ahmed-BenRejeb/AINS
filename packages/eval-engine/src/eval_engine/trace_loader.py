@@ -1,9 +1,15 @@
 """Load a run's trace from the flight recorder for evaluation.
 
 The eval API is given a ``run_id``; the full trace lives in the flight recorder
-(UC2). This fetches ``GET {FLIGHT_RECORDER_URL}/runs/{run_id}`` and reconstructs
-``TraceRecord`` steps from the returned rows. Previews are best-effort JSON — a
-truncated preview falls back to a wrapper dict rather than failing the load.
+(UC2). Two sources, in order of fidelity:
+
+1. **The MinIO cassette** (``{run_id}.json``) — the flight recorder tapes every
+   step's *full* :class:`~trace_core.TraceRecord` there, so this is the non-lossy
+   source. Preferred whenever the cassette exists (:mod:`cassette_store`).
+2. **D1 previews** (fallback) — ``GET {FLIGHT_RECORDER_URL}/runs/{run_id}``
+   returns the ``trace_records`` rows, whose input/output are 500-char previews.
+   Used only when the cassette is absent (e.g. an older record-less run). A
+   truncated preview falls back to a wrapper dict rather than failing the load.
 """
 
 from __future__ import annotations
@@ -15,6 +21,8 @@ from typing import Any
 
 import httpx
 from trace_core import AuditBlock, StepKind, StepMetadata, TraceRecord
+
+from . import cassette_store
 
 _DEFAULT_FLIGHT_URL = "https://flight.ahmedxsaad.me"
 _LOAD_TIMEOUT_SECONDS = 30.0
@@ -68,11 +76,30 @@ def _row_to_record(row: dict[str, Any]) -> TraceRecord:
 async def load_trace(run_id: str) -> list[TraceRecord]:
     """Fetch and reconstruct the ordered trace for a run.
 
+    Prefers the full MinIO cassette (non-lossy); falls back to the flight
+    recorder's D1 previews when no cassette exists for the run.
+
     Args:
         run_id: UUID of the run.
 
     Returns:
         The run's steps as ``TraceRecord`` objects, ordered by sequence.
+    """
+    cassette_records = cassette_store.load_cassette_records(run_id)
+    if cassette_records is not None:
+        return sorted(cassette_records, key=lambda record: record.sequence)
+    return await _load_from_d1_previews(run_id)
+
+
+async def _load_from_d1_previews(run_id: str) -> list[TraceRecord]:
+    """Reconstruct a trace from the flight recorder's D1 row previews (fallback).
+
+    Args:
+        run_id: UUID of the run.
+
+    Returns:
+        The run's steps rebuilt from ``GET /runs/{run_id}``'s ``trace`` rows,
+        ordered by sequence. Input/output are the truncated D1 previews.
     """
     async with httpx.AsyncClient(timeout=_LOAD_TIMEOUT_SECONDS) as client:
         response = await client.get(f"{_flight_url()}/runs/{run_id}")
@@ -80,4 +107,4 @@ async def load_trace(run_id: str) -> list[TraceRecord]:
         body: dict[str, Any] = response.json()
     rows: list[dict[str, Any]] = body.get("trace", [])
     records = [_row_to_record(row) for row in rows]
-    return sorted(records, key=lambda r: r.sequence)
+    return sorted(records, key=lambda record: record.sequence)
