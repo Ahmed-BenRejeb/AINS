@@ -19,6 +19,10 @@ import {
 import type { DataSource, RunManifestRow } from "@/lib/types";
 import { timeAgo, truncateId, withMock } from "@/lib/utils";
 
+/**
+ * All recorded runs as a clickable table (row → trace). Empty state nudges toward
+ * `?mock=true`. Receives the server-fetched run list and its data-source.
+ */
 export function RunsView({
   runs,
   source,
@@ -92,7 +96,10 @@ export function RunsView({
                       <TableCell className="text-right font-mono text-sm tabular-nums text-foreground">
                         {run.step_count}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                      <TableCell
+                        suppressHydrationWarning
+                        className="text-right font-mono text-xs tabular-nums text-muted-foreground"
+                      >
                         {timeAgo(run.started_at)}
                       </TableCell>
                       <TableCell className="text-right">

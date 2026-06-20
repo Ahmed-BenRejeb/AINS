@@ -84,7 +84,7 @@ packages/
 
 ### `dashboard` — The Human Interface
 
-**What it is:** A Next.js web app providing a unified view: execution graphs, verdict details, replay timelines, drift charts, incident status.
+**What it is:** A Next.js 16 web app providing a unified view: an overview/health page, recorded runs, per-run execution traces, verdict details (with failure attribution), and deterministic replay/bisect.
 
 **Why it's separate:** The dashboard consumes data from multiple packages but produces none. It has no business logic. Keeping it separate means frontend and backend work don't block each other.
 
@@ -100,7 +100,7 @@ flight-recorder  ← imports trace-core only
 eval-engine      ← imports trace-core only (reads cassettes from MinIO over S3, not the package)
 atlassian-remote ← imports trace-core + flight-recorder (records its RCA runs via UC2)
 atlassian-agent  ← imports nothing local (calls atlassian-remote via HTTP)
-dashboard        ← imports trace-core types only (via generated TS types)
+dashboard        ← uses trace-core types only (mirrored in lib/types.ts; separate Next workspace)
 ```
 
 `atlassian-remote → flight-recorder` is the one allowed cross-UC package edge: the

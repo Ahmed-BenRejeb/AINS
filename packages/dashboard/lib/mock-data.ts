@@ -450,6 +450,7 @@ const mockVerdicts: Record<string, EvalVerdict> = {
 
 // ─── Replay / bisect ───────────────────────────────────────────────────────────
 
+/** Mock replay result: the failing webhook run diverges, every other run is clean. */
 export function mockReplay(runId: string): ReplayResult {
   // The failing webhook run replays with a divergence; everything else is clean.
   if (runId === RUN_IDS.fail1) {
@@ -490,6 +491,7 @@ export const mockBisect: BisectResult = {
 
 // ─── Aggregates / accessors ────────────────────────────────────────────────────
 
+/** Compact home-page verdict rows (one per mock run, joined to its verdict). */
 export function mockVerdictSummaries(): VerdictSummary[] {
   return mockRuns.map((run) => {
     const v = mockVerdicts[run.run_id];
@@ -502,6 +504,7 @@ export function mockVerdictSummaries(): VerdictSummary[] {
   });
 }
 
+/** Aggregate home-page metrics derived from the mock verdicts. */
 export function mockStats(): OverviewStats {
   const verdicts = Object.values(mockVerdicts);
   const passes = verdicts.filter((v) => v.verdict === "pass").length;
@@ -515,16 +518,19 @@ export function mockStats(): OverviewStats {
   };
 }
 
+/** A run's manifest + trace for `/runs/[run_id]`; synthesises a trace for unknown ids. */
 export function mockRunDetail(runId: string): RunDetail {
   const manifest = mockRuns.find((r) => r.run_id === runId) ?? null;
   const trace = mockTraces[runId] ?? buildTrace(runId);
   return { run_id: runId, manifest, trace };
 }
 
+/** A run's verdict for `/verdicts/[run_id]`; defaults to a pass for unknown ids. */
 export function mockVerdict(runId: string): EvalVerdict {
   return mockVerdicts[runId] ?? PASS_VERDICT(runId);
 }
 
+/** A full `/analyze` envelope (UC3 shape) — kept for reference/completeness. */
 export function mockAnalyzeResult(): AnalyzeResult {
   return {
     run_id: RUN_IDS.pass1,

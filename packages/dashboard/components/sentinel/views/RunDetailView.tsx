@@ -21,6 +21,11 @@ function MetaItem({ label, value, mono }: { label: string; value: React.ReactNod
   );
 }
 
+/**
+ * One run's execution trace: a manifest summary grid plus the staggered step
+ * timeline, with Replay / View-Verdict actions. Degrades gracefully when the
+ * manifest or trace is missing.
+ */
 export function RunDetailView({
   detail,
   source,

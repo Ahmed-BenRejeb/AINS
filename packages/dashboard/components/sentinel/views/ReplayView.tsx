@@ -17,6 +17,12 @@ import { Button } from "@/components/ui/button";
 import type { BisectResult, Loaded, ReplayResult } from "@/lib/types";
 import { cn, truncateId, withMock } from "@/lib/utils";
 
+/**
+ * Replay screen: shows the replay deep-link, launches a deterministic replay
+ * (`POST /api/replay`) and a two-run bisect (`POST /api/bisect`), and renders the
+ * result (clean replay / divergences, or the first diverging step). `mock` is
+ * threaded to the API routes so demo mode returns fixtures.
+ */
 export function ReplayView({
   runId,
   replayLink,
