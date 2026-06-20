@@ -1,5 +1,14 @@
 # pnpm workspace — TypeScript packages.
 # Lets `pnpm --filter <pkg> <script>` (used by the Makefile) resolve each package.
-# Add packages/dashboard here once it gains a package.json (Phase 5).
 packages:
   - 'packages/atlassian-agent'
+  - 'packages/dashboard'
+
+# Native build scripts we explicitly deny — the dashboard needs neither, and an
+# explicit decision keeps `pnpm <script>`'s pre-run check from failing with
+# ERR_PNPM_IGNORED_BUILDS. `unrs-resolver`: optional eslint import-resolver binary
+# (JS fallback is used). `sharp`: next/image optimizer — the dashboard uses no
+# next/image, so its native binary is unnecessary.
+allowBuilds:
+  sharp: false
+  unrs-resolver: false
