@@ -37,7 +37,8 @@ import type {
   VerdictSummary,
 } from "./types";
 
-// Live service URLs (overridable via env for local dev / self-hosting).
+// Public service URLs — used for human-clickable links (replay deep-link, Langfuse).
+// Overridable via env for local dev / self-hosting.
 export const FLIGHT_RECORDER_URL =
   process.env.NEXT_PUBLIC_FLIGHT_RECORDER_URL ?? "https://flight.ahmedxsaad.me";
 export const EVAL_ENGINE_URL =
@@ -46,6 +47,14 @@ export const FORGE_REMOTE_URL =
   process.env.NEXT_PUBLIC_FORGE_REMOTE_URL ?? "https://remote.ahmedxsaad.me";
 export const LANGFUSE_URL =
   process.env.NEXT_PUBLIC_LANGFUSE_URL ?? "https://langfuse.ahmedxsaad.me";
+
+// Internal base URLs for server-side fetches (never sent to the browser). On the
+// Azure VM these point at localhost so the dashboard talks to the services directly
+// (faster, and avoids the public tunnel hop), while the clickable links above stay
+// public. Default to the public URL when unset (e.g. local dev).
+const FLIGHT_RECORDER_API =
+  process.env.FLIGHT_RECORDER_INTERNAL_URL ?? FLIGHT_RECORDER_URL;
+const EVAL_ENGINE_API = process.env.EVAL_ENGINE_INTERNAL_URL ?? EVAL_ENGINE_URL;
 
 const FETCH_TIMEOUT_MS = 5000;
 
@@ -97,7 +106,7 @@ function coerceVerdict(value: unknown): VerdictLabel {
 export async function getRuns(useMock: boolean): Promise<Loaded<RunManifestRow[]>> {
   if (useMock) return mock(mockRuns);
   try {
-    const rows = await fetchJson<RunManifestRow[]>(`${FLIGHT_RECORDER_URL}/runs`);
+    const rows = await fetchJson<RunManifestRow[]>(`${FLIGHT_RECORDER_API}/runs`);
     return live(Array.isArray(rows) ? rows : []);
   } catch (err) {
     return fallback(mockRuns, err);
@@ -112,7 +121,7 @@ export async function getRunDetail(
   if (useMock) return mock(mockRunDetail(runId));
   try {
     const detail = await fetchJson<RunDetail>(
-      `${FLIGHT_RECORDER_URL}/runs/${encodeURIComponent(runId)}`,
+      `${FLIGHT_RECORDER_API}/runs/${encodeURIComponent(runId)}`,
     );
     return live(detail);
   } catch (err) {
@@ -133,7 +142,7 @@ export async function getVerdict(
   if (useMock) return mock(mockVerdict(runId));
   try {
     const verdict = await fetchJson<EvalVerdict>(
-      `${EVAL_ENGINE_URL}/verdicts/${encodeURIComponent(runId)}`,
+      `${EVAL_ENGINE_API}/verdicts/${encodeURIComponent(runId)}`,
     );
     return live(verdict);
   } catch (err) {
@@ -147,7 +156,7 @@ export async function getVerdictSummaries(
 ): Promise<Loaded<VerdictSummary[]>> {
   if (useMock) return mock(mockVerdictSummaries());
   try {
-    const verdicts = await fetchJson<EvalVerdict[]>(`${EVAL_ENGINE_URL}/verdicts`);
+    const verdicts = await fetchJson<EvalVerdict[]>(`${EVAL_ENGINE_API}/verdicts`);
     const summaries: VerdictSummary[] = verdicts.map((v) => ({
       run_id: v.run_id,
       verdict: coerceVerdict(v.verdict),
@@ -213,7 +222,7 @@ export async function postReplay(
 ): Promise<Loaded<ReplayResult>> {
   if (useMock) return mock(mockReplay(runId));
   try {
-    const result = await fetchJson<ReplayResult>(`${FLIGHT_RECORDER_URL}/replay`, {
+    const result = await fetchJson<ReplayResult>(`${FLIGHT_RECORDER_API}/replay`, {
       method: "POST",
       body: JSON.stringify({ run_id: runId }),
     });
@@ -231,7 +240,7 @@ export async function postBisect(
 ): Promise<Loaded<BisectResult>> {
   if (useMock) return mock(mockBisect);
   try {
-    const result = await fetchJson<BisectResult>(`${FLIGHT_RECORDER_URL}/bisect`, {
+    const result = await fetchJson<BisectResult>(`${FLIGHT_RECORDER_API}/bisect`, {
       method: "POST",
       body: JSON.stringify({ good_run_id: goodRunId, bad_run_id: badRunId }),
     });
