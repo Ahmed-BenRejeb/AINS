@@ -23,7 +23,7 @@ atlassian-remote/
 ├── api.py                       FastAPI server (port 8080): /analyze /search /embed /health
 ├── src/atlassian_remote/
 │   ├── config.py                env-driven config: CF models, xqdrant, Atlassian, backoff
-│   ├── cf_ai_client.py          CF Workers AI calls (cf_ai_chat + cf_ai_embed)
+│   ├── cf_ai_client.py          CF Workers AI calls (cf_ai_chat + cf_ai_embed); _post retries 429/5xx with backoff
 │   ├── vector_search.py         xqdrant query_points (incidents + runbooks) → SearchResult
 │   ├── rca_generator.py         RCA drafting via CF Workers AI → RcaDraft (+ needs_human_review)
 │   ├── analyzer.py              /analyze orchestration: fetch → record → embed+search → draft → manifest → eval
@@ -141,6 +141,8 @@ async def verify_request(request: Request):
 ## Known Gotchas
 
 - CF Workers AI free tier: 10,000 neurons/day, resets at 00:00 UTC. Batch embedding calls.
+  Under load it also rate-limits (429); `cf_ai_client._post` retries (429 → 30s ×3, 5xx → 5s ×2,
+  via `asyncio.sleep`, warning on each) — so space real test calls >3s apart.
 - xqdrant returns results even for poor matches — filter by `score > VECTOR_SIMILARITY_THRESHOLD` (0.75)
 - Forge timeout is 25 seconds — keep remote calls under 15s
 

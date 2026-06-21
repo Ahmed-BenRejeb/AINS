@@ -21,7 +21,7 @@ eval-engine/
 ├── api.py                       FastAPI server (port 8000): /evaluate /evaluate/batch /health
 ├── pyproject.toml               hatchling package; deps: trace-core, httpx, fastapi
 ├── src/eval_engine/
-│   ├── cf_ai_client.py          async CF Workers AI: cf_ai_chat / cf_ai_embed / cf_ai_safety
+│   ├── cf_ai_client.py          async CF Workers AI: cf_ai_chat / cf_ai_embed / cf_ai_safety (429/5xx retry+backoff in _post)
 │   ├── config.py                env-driven config: models, thresholds, Atlassian fields
 │   ├── models.py                local result models: SafetyResult, CodeGraderResult, JudgeVerdict
 │   ├── transcript.py            render a run's TraceRecords into a judge/safety transcript
@@ -142,9 +142,11 @@ verdict = await evaluate_run(run_id, trial_number=0, records=records)
 ## Status (20 Jun 2026)
 
 Core pipeline built, green, and **live-validated** by the Phase 4 loop: `make
-test-uc1` passes (26 tests); ruff/black/isort/mypy --strict clean. `trace_loader`
+test-uc1` passes (30 tests); ruff/black/isort/mypy --strict clean. `trace_loader`
 now loads the **full MinIO cassette** via `cassette_store` (D1 row previews are the
 fallback only). Jira filing in `reporter._file_issue` is **best-effort** (a Jira
 outage/rejection no longer fails `/evaluate`). `cf_ai_chat` re-serializes CF Workers
 AI's JSON-mode dict response to a string so the judge can `model_validate_json` it.
+`cf_ai_client._post` retries CF Workers AI rate limits / transient 5xx (429 → 30s
+×3, 5xx → 5s ×2, via `asyncio.sleep`); LLM calls are also traced to Langfuse.
 Not yet built: the drift detector (`drift/detector.py` + `embedder.py`).

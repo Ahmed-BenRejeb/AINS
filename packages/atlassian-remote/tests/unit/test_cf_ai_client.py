@@ -4,8 +4,21 @@ from __future__ import annotations
 
 import json
 
+import httpx
+import pytest
 from atlassian_remote import cf_ai_client
 from pytest_httpx import HTTPXMock
+
+
+def _patch_sleep(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Record retry backoff delays and skip the real ``asyncio.sleep`` wait."""
+    sleeps: list[float] = []
+
+    async def _fake_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr("asyncio.sleep", _fake_sleep)
+    return sleeps
 
 
 async def test_cf_ai_chat_returns_response_text(httpx_mock: HTTPXMock) -> None:
@@ -51,3 +64,46 @@ async def test_cf_ai_chat_serializes_json_mode_dict_response(httpx_mock: HTTPXMo
 
     assert isinstance(out, str)
     assert json.loads(out) == {"root_cause_hypothesis": "x", "confidence_score": 0.5}
+
+
+async def test_post_retries_on_429_then_succeeds(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A 429 backs off 30s (mocked) and retries, then returns the next 200."""
+    sleeps = _patch_sleep(monkeypatch)
+    httpx_mock.add_response(status_code=429)
+    httpx_mock.add_response(json={"result": {"response": "ok"}})
+
+    out = await cf_ai_client.cf_ai_chat([{"role": "user", "content": "x"}])
+
+    assert out == "ok"
+    assert sleeps == [30.0]
+    assert len(httpx_mock.get_requests()) == 2
+
+
+async def test_post_retries_on_5xx_then_succeeds(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transient 5xx backs off 5s (mocked) and retries, then succeeds."""
+    sleeps = _patch_sleep(monkeypatch)
+    httpx_mock.add_response(status_code=503)
+    httpx_mock.add_response(json={"result": {"data": [[0.1, 0.2]]}})
+
+    out = await cf_ai_client.cf_ai_embed(["x"])
+
+    assert out == [[0.1, 0.2]]
+    assert sleeps == [5.0]
+
+
+async def test_post_raises_after_429_budget_exhausted(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After the initial 429 + 3 retries all 429, the error propagates."""
+    sleeps = _patch_sleep(monkeypatch)
+    for _ in range(4):
+        httpx_mock.add_response(status_code=429)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await cf_ai_client.cf_ai_chat([{"role": "user", "content": "x"}])
+
+    assert sleeps == [30.0, 30.0, 30.0]

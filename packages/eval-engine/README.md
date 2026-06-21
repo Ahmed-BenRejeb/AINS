@@ -44,7 +44,7 @@ Standard src-layout: the importable package is `src/eval_engine/`
 eval-engine/
 ├── api.py                       FastAPI server (port 8000)
 ├── src/eval_engine/
-│   ├── cf_ai_client.py          async CF Workers AI: chat / embed / safety
+│   ├── cf_ai_client.py          async CF Workers AI: chat / embed / safety (429/5xx retry+backoff)
 │   ├── config.py                env-driven config: models, thresholds, Atlassian fields
 │   ├── models.py                SafetyResult, CodeGraderResult, JudgeVerdict
 │   ├── transcript.py            render TraceRecords → transcript for the graders
