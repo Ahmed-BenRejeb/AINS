@@ -271,3 +271,35 @@ class RcaDraft(BaseModel):
     confidence_score: float = Field(
         ge=0.0, le=1.0, description="Agent's confidence in this draft, in [0, 1]."
     )
+
+
+class DuplicateVerdict(BaseModel):
+    """LLM judgment on whether an incoming incident is a semantic duplicate.
+
+    Produced by the UC3 semantic duplicate resolver after vector-searching the
+    incidents collection. Always a Pydantic structured output — never parsed from
+    free text — so the Forge action can act on it deterministically. ``flag_for_human``
+    is deliberately NOT a field here: it is derived from this verdict and surfaced on
+    the response envelope (``atlassian_remote.models.DuplicateResult``), keeping this
+    schema a pure model contract (mirrors how ``RcaDraft`` omits it).
+    """
+
+    is_duplicate: bool = Field(
+        description="True when the incident is judged a true semantic duplicate of a past one.",
+    )
+    duplicate_of: str | None = Field(
+        default=None,
+        description="Incident id of the matched duplicate (None when is_duplicate is False).",
+    )
+    confidence: float = Field(
+        ge=0.0, le=1.0, description="Judge confidence in the duplicate verdict, in [0, 1]."
+    )
+    rationale: str = Field(
+        description="Why the incident is or is not a duplicate (semantic, not lexical, reasoning).",
+    )
+    explanation: str = Field(
+        description="Polite reporter-facing message to post as a Jira comment when confident.",
+    )
+    candidates: list[str] = Field(
+        description="Ids of near-miss incidents to surface for human review (empty if none).",
+    )

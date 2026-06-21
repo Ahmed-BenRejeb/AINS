@@ -200,3 +200,19 @@ export interface RcaDraft {
   /** Agent's confidence in this draft, in [0, 1]. */
   confidence_score: number;
 }
+
+/** mirrors schema.py: DuplicateVerdict */
+export interface DuplicateVerdict {
+  /** True when the incident is judged a true semantic duplicate of a past one. */
+  is_duplicate: boolean;
+  /** Incident id of the matched duplicate (null when is_duplicate is false). */
+  duplicate_of: string | null;
+  /** Judge confidence in the duplicate verdict, in [0, 1]. */
+  confidence: number;
+  /** Why the incident is or is not a duplicate (semantic, not lexical, reasoning). */
+  rationale: string;
+  /** Polite reporter-facing message to post as a Jira comment when confident. */
+  explanation: string;
+  /** Ids of near-miss incidents to surface for human review (empty if none). */
+  candidates: string[];
+}

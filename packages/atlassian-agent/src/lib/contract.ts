@@ -46,6 +46,23 @@ export interface AnalyzeResult {
   flag_for_human: boolean;
 }
 
+/** mirrors trace_core.DuplicateVerdict — the structured semantic-duplicate judgment. */
+export interface DuplicateVerdict {
+  is_duplicate: boolean;
+  duplicate_of: string | null;
+  confidence: number;
+  rationale: string;
+  explanation: string;
+  candidates: string[];
+}
+
+/** Response of the backend `POST /duplicates` (atlassian_remote.models.DuplicateResult). */
+export interface DuplicateResult {
+  verdict: DuplicateVerdict;
+  similar: SearchResult[];
+  flag_for_human: boolean;
+}
+
 /** Response of the backend `POST /search`. */
 export interface SearchResponse {
   results: SearchResult[];

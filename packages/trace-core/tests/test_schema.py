@@ -18,6 +18,7 @@ from trace_core import (
     Attribution,
     AuditBlock,
     DimensionScore,
+    DuplicateVerdict,
     EvalVerdict,
     FailureAttribution,
     RcaDraft,
@@ -133,6 +134,17 @@ def _rca_draft() -> RcaDraft:
     )
 
 
+def _duplicate_verdict() -> DuplicateVerdict:
+    return DuplicateVerdict(
+        is_duplicate=True,
+        duplicate_of="incident-AO-7",
+        confidence=0.9,
+        rationale="Same connection-pool exhaustion described with different wording.",
+        explanation="This looks like a duplicate of incident-AO-7; linking them.",
+        candidates=["incident-AO-12"],
+    )
+
+
 _ALL_INSTANCES: list[BaseModel] = [
     _step_metadata(),
     _audit_block(),
@@ -145,6 +157,7 @@ _ALL_INSTANCES: list[BaseModel] = [
     Attribution(dims={"0": 0.1}, terms={"x": 0.2}, confidence_margin=0.3),
     _search_result(),
     _rca_draft(),
+    _duplicate_verdict(),
 ]
 
 
@@ -168,6 +181,20 @@ def test_optional_fields_default_to_none() -> None:
     manifest = _run_manifest().model_copy(update={"cassette_id": None, "completed_at": None})
     assert manifest.cassette_id is None
     assert manifest.completed_at is None
+
+
+def test_duplicate_verdict_allows_null_target() -> None:
+    """A non-duplicate verdict can omit duplicate_of (defaults to None)."""
+    verdict = DuplicateVerdict(
+        is_duplicate=False,
+        confidence=0.2,
+        rationale="Different root cause.",
+        explanation="Not a duplicate.",
+        candidates=[],
+    )
+    restored = DuplicateVerdict.model_validate_json(verdict.model_dump_json())
+    assert restored.duplicate_of is None
+    assert restored.is_duplicate is False
 
 
 def test_eval_verdict_passes_with_no_attribution() -> None:

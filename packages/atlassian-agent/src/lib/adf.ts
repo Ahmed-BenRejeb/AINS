@@ -7,7 +7,7 @@
  * the actions post.
  */
 
-import type { AnalyzeResult } from './contract';
+import type { AnalyzeResult, DuplicateResult } from './contract';
 
 /** A generic ADF node. */
 export interface AdfNode {
@@ -132,6 +132,41 @@ export function pirToAdf(issueKey: string, analysis: AnalyzeResult): AdfDoc {
     heading(3, 'Follow-up / knowledge gaps'),
     bulletList(rca.knowledge_gaps.length > 0 ? rca.knowledge_gaps : ['None identified.']),
   );
+}
+
+/**
+ * Render a duplicate verdict as a Jira comment document.
+ *
+ * Has two branches: a confident, auto-linked duplicate posts the polite reporter
+ * explanation; an uncertain verdict surfaces the rationale and candidate matches
+ * for a human to review (graceful degradation).
+ *
+ * @param result - The backend `/duplicates` result.
+ * @returns An ADF doc for the duplicate-check comment.
+ */
+export function duplicateToAdf(result: DuplicateResult): AdfDoc {
+  const v = result.verdict;
+  const confidencePct = (v.confidence * 100).toFixed(0);
+  if (v.is_duplicate && !result.flag_for_human && v.duplicate_of) {
+    return doc(
+      heading(3, 'Sentinel — Possible Duplicate Detected'),
+      paragraph(text(v.explanation)),
+      paragraph(text(`Linked to ${v.duplicate_of} (confidence ${confidencePct}%).`)),
+    );
+  }
+  const content: AdfNode[] = [
+    heading(3, 'Sentinel — Duplicate Check (needs human review)'),
+    paragraph(text(v.rationale)),
+    paragraph(text(`Confidence ${confidencePct}% — below the auto-link threshold.`)),
+  ];
+  const candidates =
+    v.candidates.length > 0
+      ? v.candidates
+      : result.similar.map((hit) => `${hit.id} (score ${hit.score.toFixed(2)})`);
+  if (candidates.length > 0) {
+    content.push(heading(4, 'Candidate matches'), bulletList(candidates));
+  }
+  return doc(...content);
 }
 
 /**

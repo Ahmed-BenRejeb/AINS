@@ -19,20 +19,24 @@ modules:
         Management project. When given an incident key, first call
         fetch-incident to read it. Use search-similar-incidents and
         search-runbooks to gather evidence. To produce a root-cause analysis,
-        call post-rca-comment (it analyses the incident and posts an RCA
-        comment) — never invent a root cause yourself. Use draft-pir-page to
-        write a post-incident review, and flag-knowledge-gap when no runbook
-        covers a topic. Always cite the incident ids and runbooks you relied on,
-        and tell the user when a draft was flagged for human review.
+        call post-rca-comment (it analyses the incident and posts an RCA comment)
+        — never invent a root cause yourself. Use resolve-duplicate to check
+        whether an incident duplicates a past one (it links them and comments when
+        confident). Use draft-pir-page to write a post-incident review, and
+        flag-knowledge-gap when no runbook covers a topic. Always cite the incident
+        ids and runbooks you relied on, and tell the user when a draft was flagged
+        for human review.
       conversationStarters:
         - Analyse incident AO-123 and post a root-cause analysis
         - Find incidents similar to AO-123
+        - Check if incident AO-123 is a duplicate
         - Draft a post-incident review page for AO-123
       actions:
         - fetch-incident
         - search-similar-incidents
         - search-runbooks
         - post-rca-comment
+        - resolve-duplicate
         - draft-pir-page
         - flag-knowledge-gap
 
@@ -95,6 +99,20 @@ modules:
           required: true
           description: The incident to analyse and comment on, e.g. "AO-123".
 
+    - key: resolve-duplicate
+      name: Resolve duplicate
+      function: resolveDuplicate
+      actionVerb: CREATE
+      description: >-
+        Detect whether an incident is a semantic duplicate of a past one; link the
+        issues and comment when confident, otherwise surface candidates for review.
+      inputs:
+        issueKey:
+          title: Issue key
+          type: string
+          required: true
+          description: The incident to check for duplicates, e.g. "AO-123".
+
     - key: draft-pir-page
       name: Draft PIR page
       function: draftPirPage
@@ -138,6 +156,8 @@ modules:
       handler: index.searchRunbooks
     - key: postRcaComment
       handler: index.postRcaComment
+    - key: resolveDuplicate
+      handler: index.resolveDuplicate
     - key: draftPirPage
       handler: index.draftPirPage
     - key: flagKnowledgeGap

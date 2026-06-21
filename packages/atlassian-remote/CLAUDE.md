@@ -26,11 +26,12 @@ atlassian-remote/
 │   ├── cf_ai_client.py          CF Workers AI calls (cf_ai_chat + cf_ai_embed); _post retries 429/5xx with backoff
 │   ├── vector_search.py         xqdrant query_points (incidents + runbooks) → SearchResult
 │   ├── rca_generator.py         RCA drafting via CF Workers AI → RcaDraft (+ needs_human_review)
-│   ├── analyzer.py              /analyze orchestration: fetch → record → embed+search → draft → manifest → eval
+│   ├── duplicate_resolver.py    semantic-duplicate judge via CF Workers AI → DuplicateVerdict
+│   ├── analyzer.py              /analyze (record→draft→manifest→eval) + /duplicates orchestration
 │   ├── recording.py             RunRecorder (binds AsyncRecordingTransport) + persist_manifest (UC2)
 │   ├── eval_client.py           POST run_id to eval-engine /evaluate → EvalVerdict (best-effort)
 │   ├── atlassian_client.py      Atlassian REST client with exponential backoff on 429
-│   └── models.py                AnalyzeResult response envelope (composes trace_core types)
+│   └── models.py                AnalyzeResult + DuplicateResult response envelopes (compose trace_core)
 └── tests/
     ├── conftest.py              dummy env; all external calls mocked
     ├── unit/                    cf_ai_client / atlassian_client / vector_search / rca_generator / analyzer
@@ -45,11 +46,12 @@ atlassian-remote/
 ## API Endpoints
 
 ```
-POST /analyze   → { incident_key, requested_by }
-                → { run_id, rca_draft, similar, runbooks, flag_for_human, eval_verdict, replay_link }
-POST /search    → { query, index, k }            → { results }
-POST /embed     → { texts }                      → { embeddings }
-GET  /health    → { status: "ok" }
+POST /analyze    → { incident_key, requested_by }
+                 → { run_id, rca_draft, similar, runbooks, flag_for_human, eval_verdict, replay_link }
+POST /duplicates → { incident_key, requested_by } → { verdict, similar, flag_for_human }
+POST /search     → { query, index, k }            → { results }
+POST /embed      → { texts }                      → { embeddings }
+GET  /health     → { status: "ok" }
 ```
 
 > `/analyze` is the **Phase 4 end-to-end loop**: it generates a `run_id`, records every
@@ -61,6 +63,12 @@ GET  /health    → { status: "ok" }
 > eval are best-effort (an outage never fails the analysis). Internal calls use localhost
 > (eval `:8000`, MinIO `:9090`); `replay_link` uses the public flight-recorder URL. All
 > routes except `/health` require the `X-Sentinel-Secret` header.
+
+> `/duplicates` searches the **incidents** collection only and judges a
+> `trace_core.DuplicateVerdict`. `flag_for_human` here is stricter than `/analyze`'s:
+> it trips when the verdict is not a duplicate, has no `duplicate_of` target, **or**
+> `confidence < DUPLICATE_CONFIDENCE_THRESHOLD` (0.85) — so the Forge action only
+> auto-links when it is safe. The flag is surfaced on the envelope, not the schema.
 
 ## LLM Pattern — CF Workers AI (NOT Anthropic SDK)
 
