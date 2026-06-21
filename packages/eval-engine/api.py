@@ -11,6 +11,7 @@ Run locally::
 
 from __future__ import annotations
 
+from eval_engine.langfuse_client import init_langfuse
 from eval_engine.metrics.pass_at_k import consistency_rate, pass_at_k
 from eval_engine.trace_loader import load_trace
 from eval_engine.verdicts.reporter import evaluate_run
@@ -19,6 +20,9 @@ from pydantic import BaseModel, Field
 from trace_core import PASS_AT_K_TRIALS, EvalVerdict, TraceRecord
 
 app = FastAPI(title="Sentinel Eval Engine", version="0.1.0")
+
+# Initialise Langfuse observability at startup (no-op if LANGFUSE_* is unset).
+init_langfuse()
 
 
 class EvaluateRequest(BaseModel):

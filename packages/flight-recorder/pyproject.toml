@@ -21,6 +21,7 @@ dependencies = [
     "boto3>=1.34",           # MinIO (S3-compatible) cassette blob storage
     "fastapi>=0.110",        # the run/replay/bisect API on port 8001
     "uvicorn>=0.29",         # ASGI server for api.py
+    "langfuse>=4.9.1",
 ]
 
 # Standard src-layout: the importable package lives at src/flight_recorder/, so the

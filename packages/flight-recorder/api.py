@@ -15,12 +15,16 @@ from typing import Any
 
 from fastapi import FastAPI
 from flight_recorder.config import RUN_MANIFESTS_TABLE
+from flight_recorder.langfuse_client import init_langfuse
 from flight_recorder.replay.bisect import BisectResult, bisect_runs
 from flight_recorder.replay.engine import ReplayResult, replay_run
 from flight_recorder.storage import d1_client
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Sentinel Flight Recorder", version="0.1.0")
+
+# Initialise Langfuse observability at startup (no-op if LANGFUSE_* is unset).
+init_langfuse()
 
 
 class ReplayRequest(BaseModel):
