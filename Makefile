@@ -175,14 +175,14 @@ deploy-forge: ## Deploy Forge app to Atlassian dev environment
 	cd packages/atlassian-agent && forge install --environment development --site $(ATLASSIAN_SITE)
 	@echo "✓ Forge deployment complete."
 
-deploy-remote: ## Deploy Forge Remote backend to Azure VM
+deploy-remote: ## Deploy Forge Remote backend to Azure VM (git pull + restart systemd unit)
 	@echo "→ Deploying atlassian-remote to Azure VM..."
-	rsync -avz --exclude '__pycache__' --exclude '.venv' \
-	  packages/atlassian-remote/ \
-	  $(AZURE_VM_USER)@$(AZURE_VM_HOST):/srv/sentinel/atlassian-remote/
+	# The services run from the repo checkout at /home/<user>/AINS via the
+	# sentinel-{eval,remote,flight} systemd units, so deploy = pull + sync + restart.
 	ssh $(AZURE_VM_USER)@$(AZURE_VM_HOST) \
-	  "cd /srv/sentinel/atlassian-remote && \
-	   uv sync && \
+	  "cd /home/$(AZURE_VM_USER)/AINS && \
+	   git pull --ff-only && \
+	   /home/$(AZURE_VM_USER)/.local/bin/uv sync --all-packages && \
 	   sudo systemctl restart sentinel-remote"
 	@echo "✓ Forge Remote deployment complete."
 

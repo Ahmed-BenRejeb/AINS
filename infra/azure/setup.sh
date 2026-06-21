@@ -95,15 +95,15 @@ echo ""
 echo "→ Creating systemd service: sentinel-eval..."
 sudo tee /etc/systemd/system/sentinel-eval.service > /dev/null << EOF
 [Unit]
-Description=Sentinel Eval Engine (FastAPI)
-After=network.target
+Description=Sentinel Eval Engine (UC1)
+After=network.target docker.service
 
 [Service]
 Type=simple
 User=${USER}
-WorkingDirectory=/srv/sentinel/eval-engine
+WorkingDirectory=/home/${USER}/AINS
 EnvironmentFile=/srv/sentinel/.env
-ExecStart=/home/${USER}/.local/bin/uv run uvicorn api:app --host 127.0.0.1 --port 8000
+ExecStart=/home/${USER}/.local/bin/uv run uvicorn api:app --app-dir packages/eval-engine --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5
 StandardOutput=append:/srv/sentinel/logs/eval-engine.log
@@ -117,19 +117,41 @@ EOF
 echo "→ Creating systemd service: sentinel-remote..."
 sudo tee /etc/systemd/system/sentinel-remote.service > /dev/null << EOF
 [Unit]
-Description=Sentinel Atlassian Remote Backend (FastAPI)
-After=network.target
+Description=Sentinel Atlassian Remote (UC3)
+After=network.target docker.service
 
 [Service]
 Type=simple
 User=${USER}
-WorkingDirectory=/srv/sentinel/atlassian-remote
+WorkingDirectory=/home/${USER}/AINS
 EnvironmentFile=/srv/sentinel/.env
-ExecStart=/home/${USER}/.local/bin/uv run uvicorn api:app --host 127.0.0.1 --port 8080
+ExecStart=/home/${USER}/.local/bin/uv run uvicorn api:app --app-dir packages/atlassian-remote --host 0.0.0.0 --port 8080
 Restart=always
 RestartSec=5
 StandardOutput=append:/srv/sentinel/logs/atlassian-remote.log
 StandardError=append:/srv/sentinel/logs/atlassian-remote.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# ── systemd service: flight-recorder ──────────────────────────────────────────
+echo "→ Creating systemd service: sentinel-flight..."
+sudo tee /etc/systemd/system/sentinel-flight.service > /dev/null << EOF
+[Unit]
+Description=Sentinel Flight Recorder (UC2)
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=${USER}
+WorkingDirectory=/home/${USER}/AINS
+EnvironmentFile=/srv/sentinel/.env
+ExecStart=/home/${USER}/.local/bin/uv run uvicorn api:app --app-dir packages/flight-recorder --host 0.0.0.0 --port 8001
+Restart=always
+RestartSec=5
+StandardOutput=append:/srv/sentinel/logs/flight-recorder.log
+StandardError=append:/srv/sentinel/logs/flight-recorder.log
 
 [Install]
 WantedBy=multi-user.target
@@ -183,7 +205,7 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable sentinel-eval sentinel-remote sentinel-dashboard cloudflared
+sudo systemctl enable sentinel-eval sentinel-remote sentinel-flight sentinel-dashboard cloudflared
 
 echo ""
 echo "=== Setup complete ==="
@@ -192,13 +214,15 @@ echo "Next steps:"
 echo "  1. Create Cloudflare Tunnel: cloudflared tunnel login && cloudflared tunnel create sentinel"
 echo "  2. Edit /srv/sentinel/langfuse/.env with your domain"
 echo "  3. Start Langfuse: cd /srv/sentinel/langfuse && docker compose up -d"
-echo "  4. Copy your package code to /srv/sentinel/{eval-engine,atlassian-remote,dashboard}"
+echo "  4. Clone the repo to /home/\${USER}/AINS (the Python services run from there via"
+echo "     'uv run uvicorn ... --app-dir packages/<pkg>'); only the dashboard is built under"
+echo "     /srv/sentinel/dashboard"
 echo "  5. Copy .env to /srv/sentinel/.env"
 echo "  6. Build the dashboard: cd /srv/sentinel/dashboard && pnpm install && pnpm build"
 echo "  7. Add tunnel ingress hostnames in ~/.cloudflared/config.yml (one per service:"
 echo "     langfuse:3000 eval:8000 remote:8080 flight:8001 dashboard:3001) and create the"
 echo "     DNS routes, e.g.: cloudflared tunnel route dns sentinel dashboard.ahmedxsaad.me"
-echo "  8. Start services: sudo systemctl start sentinel-eval sentinel-remote sentinel-dashboard cloudflared"
+echo "  8. Start services: sudo systemctl start sentinel-eval sentinel-remote sentinel-flight sentinel-dashboard cloudflared"
 echo ""
 echo "  Note: log out and back in (or run 'newgrp docker') so your user picks up"
 echo "        the docker group before running docker compose."
