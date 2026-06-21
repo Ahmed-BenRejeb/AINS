@@ -11,3 +11,4 @@ export { searchRunbooks } from './actions/searchRunbooks';
 export { postRcaComment } from './actions/postRcaComment';
 export { draftPirPage } from './actions/draftPirPage';
 export { flagKnowledgeGap } from './actions/flagKnowledgeGap';
+export { resolveDuplicate } from './actions/resolveDuplicate';

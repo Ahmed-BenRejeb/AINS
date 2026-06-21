@@ -14,10 +14,10 @@ from types import ModuleType
 
 import pytest
 from atlassian_remote import analyzer, cf_ai_client, vector_search
-from atlassian_remote.models import AnalyzeResult
+from atlassian_remote.models import AnalyzeResult, DuplicateResult
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from trace_core import Attribution, RcaDraft, SearchResult
+from trace_core import Attribution, DuplicateVerdict, RcaDraft, SearchResult
 
 _API_PATH = Path(__file__).resolve().parents[2] / "api.py"
 _AUTH = {"X-Sentinel-Secret": "remote-secret", "X-Account-Id": "acc-1"}
@@ -67,6 +67,17 @@ def _hit() -> SearchResult:
         text="db pool",
         score=0.9,
         attribution=Attribution(dims={}, terms={}, confidence_margin=0.1),
+    )
+
+
+def _verdict() -> DuplicateVerdict:
+    return DuplicateVerdict(
+        is_duplicate=True,
+        duplicate_of="INC-1",
+        confidence=0.91,
+        rationale="same pool exhaustion",
+        explanation="This looks like a duplicate of INC-1.",
+        candidates=[],
     )
 
 
@@ -125,6 +136,34 @@ def test_analyze_happy_path(client: TestClient, monkeypatch: pytest.MonkeyPatch)
     assert body["similar"][0]["id"] == "INC-1"
     assert body["flag_for_human"] is False
     assert body["replay_link"] == "https://flight.ahmedxsaad.me/runs/run-abc"
+
+
+def test_duplicates_requires_secret(client: TestClient) -> None:
+    """/duplicates rejects a request with no X-Sentinel-Secret header."""
+    response = client.post("/duplicates", json={"incident_key": "AO-1", "requested_by": "acc"})
+
+    assert response.status_code == 401
+
+
+def test_duplicates_happy_path(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """/duplicates returns a serialised DuplicateResult containing the verdict."""
+    result = DuplicateResult(verdict=_verdict(), similar=[_hit()], flag_for_human=False)
+
+    async def fake_resolve(incident_key: str, requested_by: str) -> DuplicateResult:
+        return result
+
+    monkeypatch.setattr(analyzer, "resolve_incident_duplicate", fake_resolve)
+
+    response = client.post(
+        "/duplicates", json={"incident_key": "AO-1", "requested_by": "acc"}, headers=_AUTH
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["verdict"]["is_duplicate"] is True
+    assert body["verdict"]["duplicate_of"] == "INC-1"
+    assert body["similar"][0]["id"] == "INC-1"
+    assert body["flag_for_human"] is False
 
 
 def test_search_happy_path(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
