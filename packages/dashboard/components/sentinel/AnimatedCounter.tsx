@@ -4,8 +4,9 @@ import { useEffect, useRef } from "react";
 import { animate, useInView } from "framer-motion";
 
 /**
- * Counts a number up from 0 to `value` on first view. Supports a suffix ("%") and
- * fixed decimals; renders as tabular-nums monospace so it doesn't jitter.
+ * Counts a number up to `value` on first view. The final value is the default
+ * rendered content (so it is never blank if the observer or JS does not run); the
+ * count-up is a pure enhancement that plays when the element scrolls into view.
  */
 export function AnimatedCounter({
   value,
@@ -22,23 +23,28 @@ export function AnimatedCounter({
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true, margin: "-20px" });
+  const final = value.toFixed(decimals) + suffix;
 
   useEffect(() => {
     if (!inView || !ref.current) return;
     const node = ref.current;
     const controls = animate(0, value, {
       duration: durationSeconds,
-      ease: [0.22, 1, 0.36, 1],
+      ease: [0.23, 1, 0.32, 1],
       onUpdate: (latest) => {
         node.textContent = latest.toFixed(decimals) + suffix;
       },
+      onComplete: () => {
+        node.textContent = final;
+      },
     });
     return () => controls.stop();
-  }, [inView, value, decimals, suffix, durationSeconds]);
+  }, [inView, value, decimals, suffix, durationSeconds, final]);
 
+  // Default content is the real value (robust); the effect re-animates from 0.
   return (
     <span ref={ref} className={className}>
-      {(0).toFixed(decimals) + suffix}
+      {final}
     </span>
   );
 }

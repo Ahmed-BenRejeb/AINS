@@ -1,9 +1,20 @@
 "use client";
 
-import { motion, type Variants } from "framer-motion";
+import { useRef } from "react";
+import {
+  motion,
+  useMotionValue,
+  useSpring,
+  useTransform,
+  useReducedMotion,
+  type Variants,
+} from "framer-motion";
 import { cn } from "@/lib/utils";
 
-/** Page transition: fade + slight upward movement (y: 10 → 0, opacity: 0 → 1). */
+// Strong ease-out (emil-design-eng). Movement starts fast → feels responsive.
+export const EASE_OUT = [0.23, 1, 0.32, 1] as const;
+
+/** Page transition: fade + slight upward movement. */
 export function PageTransition({
   children,
   className,
@@ -15,7 +26,7 @@ export function PageTransition({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.4, ease: EASE_OUT }}
       className={className}
     >
       {children}
@@ -36,26 +47,77 @@ export function HoverCard({
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay, ease: [0.22, 1, 0.36, 1] }}
-      whileHover={{ y: -2, boxShadow: "0 8px 30px -8px rgba(0,0,0,0.6)" }}
-      className={cn("rounded-lg", className)}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.3 }}
+      transition={{ duration: 0.4, delay, ease: EASE_OUT }}
+      whileHover={{ y: -2 }}
+      className={cn("rounded-xl", className)}
     >
       {children}
     </motion.div>
   );
 }
 
-/** Container that staggers its direct children's fade-in (0.05s each). */
+/**
+ * Decorative 3D mouse-tilt. Tracks the pointer with springs (never useState, so no
+ * per-frame React re-render) and degrades to static under reduced motion. Used for
+ * the hero's live component preview only.
+ */
+export function Tilt({
+  children,
+  className,
+  max = 8,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  max?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const rx = useSpring(useTransform(my, [-0.5, 0.5], [max, -max]), {
+    stiffness: 150,
+    damping: 18,
+  });
+  const ry = useSpring(useTransform(mx, [-0.5, 0.5], [-max, max]), {
+    stiffness: 150,
+    damping: 18,
+  });
+
+  function onMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (reduce || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    mx.set((e.clientX - rect.left) / rect.width - 0.5);
+    my.set((e.clientY - rect.top) / rect.height - 0.5);
+  }
+  function onLeave() {
+    mx.set(0);
+    my.set(0);
+  }
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      style={reduce ? undefined : { rotateX: rx, rotateY: ry, transformPerspective: 1000 }}
+      className={cn("[transform-style:preserve-3d]", className)}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/** Container that staggers its direct children's reveal (~55ms each). */
 export const staggerContainer: Variants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.05 } },
+  show: { transition: { staggerChildren: 0.055 } },
 };
 
-/** A single staggered item (fade + small rise). */
 export const staggerItem: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE_OUT } },
 };
 
 export { motion };

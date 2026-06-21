@@ -84,13 +84,13 @@ export function StepTimeline({ trace }: { trace: TraceRecordRow[] }) {
                   in
                 </span>
                 <code className="block flex-1 break-words font-mono text-xs leading-relaxed text-foreground/80">
-                  {truncate(step.input_preview, 100) || "—"}
+                  {truncate(step.input_preview, 100) || "-"}
                 </code>
               </div>
               <div className="flex gap-2">
                 <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                 <code className="block flex-1 break-words font-mono text-xs leading-relaxed text-emerald-200/80">
-                  {truncate(step.output_preview, 100) || "—"}
+                  {truncate(step.output_preview, 100) || "-"}
                 </code>
               </div>
             </div>

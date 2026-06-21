@@ -72,7 +72,7 @@ function VerdictHero({ verdict }: { verdict: VerdictLabel }) {
         "flex items-center gap-4 rounded-xl border px-6 py-5",
         theme.ring,
         theme.glow,
-        verdict === "pass" && "animate-verdict-pulse",
+        verdict === "pass" && "animate-pulse-ring",
       )}
     >
       <theme.Icon className={cn("h-10 w-10", theme.text)} aria-hidden />
@@ -116,7 +116,7 @@ export function VerdictCard({
             Recommended action
           </div>
           <p className="mt-1.5 text-sm leading-relaxed text-foreground">
-            {verdict.recommended_action || "—"}
+            {verdict.recommended_action || "-"}
           </p>
         </div>
       </div>
@@ -167,7 +167,7 @@ export function VerdictCard({
             </span>
           </div>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            {verdict.self_evaluation?.self_critique || "—"}
+            {verdict.self_evaluation?.self_critique || "-"}
           </p>
         </CardContent>
       </Card>
