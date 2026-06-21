@@ -21,6 +21,11 @@ function jiraProjectKey(): string {
   return process.env.ATLASSIAN_JIRA_PROJECT_KEY ?? 'AO';
 }
 
+/** The Jira issue-link type used for duplicates (overridable; default `Duplicate`). */
+function duplicateLinkType(): string {
+  return process.env.ATLASSIAN_DUPLICATE_LINK_TYPE ?? 'Duplicate';
+}
+
 /** A flattened incident summary returned by {@link getIncident}. */
 export interface IncidentSummary {
   key: string;
@@ -82,6 +87,35 @@ export async function addComment(issueKey: string, body: AdfDoc): Promise<string
   }
   const created = (await response.json()) as { id: string };
   return created.id;
+}
+
+/**
+ * Link two Jira issues with the configured duplicate link type.
+ *
+ * The link-type **name** must exist on the site; "Duplicate" is a Jira default but
+ * is not guaranteed, so it is configurable via `ATLASSIAN_DUPLICATE_LINK_TYPE`
+ * (analogous to the issue-type-ID rule — root CLAUDE.md §10).
+ *
+ * @param inwardKey - The new (duplicate) incident, e.g. `"AO-200"`.
+ * @param outwardKey - The existing (canonical) incident it duplicates, e.g. `"AO-12"`.
+ * @returns Nothing on success.
+ * @throws If Jira responds with a non-2xx status.
+ */
+export async function linkIssues(inwardKey: string, outwardKey: string): Promise<void> {
+  const response = await withBackoff(() =>
+    api.asApp().requestJira(route`/rest/api/3/issueLink`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        type: { name: duplicateLinkType() },
+        inwardIssue: { key: inwardKey },
+        outwardIssue: { key: outwardKey },
+      }),
+    }),
+  );
+  if (!response.ok) {
+    throw new Error(`linkIssues "${inwardKey}" -> "${outwardKey}" returned ${response.status}`);
+  }
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   createConfluencePage,
   createIncidentIssue,
   getIncident,
+  linkIssues,
 } from '../../src/lib/atlassian';
 import { doc, paragraph, text } from '../../src/lib/adf';
 
@@ -50,6 +51,19 @@ describe('atlassian client', () => {
     const [url, init] = requestJira.mock.calls[0] as [string, { body: string }];
     expect(url).toBe('/rest/api/3/issue/AO-1/comment');
     expect(JSON.parse(init.body).body.type).toBe('doc');
+  });
+
+  it('linkIssues posts to the issueLink endpoint with the configured type', async () => {
+    requestJira.mockResolvedValueOnce(ok({}));
+
+    await linkIssues('AO-1', 'INC-1');
+
+    const [url, init] = requestJira.mock.calls[0] as [string, { body: string }];
+    expect(url).toBe('/rest/api/3/issueLink');
+    const payload = JSON.parse(init.body);
+    expect(payload.type.name).toBe('Duplicate');
+    expect(payload.inwardIssue.key).toBe('AO-1');
+    expect(payload.outwardIssue.key).toBe('INC-1');
   });
 
   it('createIncidentIssue uses issue-type id 10013 and omits priority/labels', async () => {

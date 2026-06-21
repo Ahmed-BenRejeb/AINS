@@ -25,7 +25,7 @@ Forge Remote URL:  https://remote.ahmedxsaad.me
 
 ```
 atlassian-agent/
-├── forge.yml              Forge manifest: 1 rovo:agent + 6 action + 6 function modules
+├── forge.yml              Forge manifest: 1 rovo:agent + 7 action + 7 function modules
 ├── package.json
 ├── tsconfig.json          strict TypeScript ("strict": true, noUncheckedIndexedAccess)
 ├── jest.config.js         ts-jest; roots=tests/ so the @forge/api manual mock auto-applies
@@ -37,10 +37,11 @@ atlassian-agent/
 │   │   ├── searchSimilarIncidents.ts   (→ remote /search, index=incidents)
 │   │   ├── searchRunbooks.ts           (→ remote /search, index=runbooks)
 │   │   ├── postRcaComment.ts           (→ remote /analyze → ADF comment)
+│   │   ├── resolveDuplicate.ts         (→ remote /duplicates → link issues + ADF comment)
 │   │   ├── draftPirPage.ts             (→ remote /analyze → Confluence ADF page)
 │   │   └── flagKnowledgeGap.ts         (Atlassian-native AO issue, id 10013)
 │   └── lib/
-│       ├── atlassian.ts   @forge/api wrappers (Jira + Confluence)
+│       ├── atlassian.ts   @forge/api wrappers (Jira + Confluence; getIncident/addComment/linkIssues/...)
 │       ├── remote.ts      Forge Remote client (callRemote — secret + account-id headers)
 │       ├── backoff.ts     withBackoff — exponential backoff for 429
 │       ├── adf.ts         ADF builders + renderers (rcaToAdf / pirToAdf / adfToText)
@@ -54,9 +55,15 @@ atlassian-agent/
 ```
 
 > Not every action calls the backend: `fetch-incident` and `flag-knowledge-gap` are
-> Atlassian-native; the search / RCA / PIR actions delegate heavy compute to
+> Atlassian-native; the search / RCA / PIR / duplicate actions delegate heavy compute to
 > `atlassian-remote`. All Jira/Confluence write bodies are ADF (Confluence uses the
 > `atlas_doc_format` representation so a space **key** can be used directly).
+>
+> `resolve-duplicate` is the only action that writes the Jira **link graph**: when the
+> backend `/duplicates` verdict is a confident duplicate (not flagged for human review)
+> it calls `linkIssues` (`POST /rest/api/3/issueLink`, type name from
+> `ATLASSIAN_DUPLICATE_LINK_TYPE`, default `Duplicate`) then comments; otherwise it only
+> posts the surfaced candidates for a human (graceful degradation).
 
 ## Critical: Issue Type ID (not name)
 

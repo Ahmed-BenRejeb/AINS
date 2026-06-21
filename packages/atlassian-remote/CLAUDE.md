@@ -26,7 +26,8 @@ atlassian-remote/
 │   ├── cf_ai_client.py          CF Workers AI calls (cf_ai_chat + cf_ai_embed)
 │   ├── vector_search.py         xqdrant query_points (incidents + runbooks) → SearchResult
 │   ├── rca_generator.py         RCA drafting via CF Workers AI → RcaDraft (+ needs_human_review)
-│   ├── analyzer.py              /analyze orchestration: fetch → embed+search → draft
+│   ├── duplicate_resolver.py    semantic-duplicate judge via CF Workers AI → DuplicateVerdict
+│   ├── analyzer.py              /analyze + /duplicates orchestration: fetch → embed+search → draft
 │   ├── atlassian_client.py      Atlassian REST client with exponential backoff on 429
 │   └── models.py                AnalyzeResult response envelope (composes trace_core types)
 └── tests/
@@ -43,11 +44,18 @@ atlassian-remote/
 ## API Endpoints
 
 ```
-POST /analyze   → { incident_key, requested_by } → { rca_draft, similar, runbooks, flag_for_human }
-POST /search    → { query, index, k }            → { results }
-POST /embed     → { texts }                      → { embeddings }
-GET  /health    → { status: "ok" }
+POST /analyze    → { incident_key, requested_by } → { rca_draft, similar, runbooks, flag_for_human }
+POST /duplicates → { incident_key, requested_by } → { verdict, similar, flag_for_human }
+POST /search     → { query, index, k }            → { results }
+POST /embed      → { texts }                      → { embeddings }
+GET  /health     → { status: "ok" }
 ```
+
+> `/duplicates` searches the **incidents** collection only and judges a
+> `trace_core.DuplicateVerdict`. `flag_for_human` here is stricter than `/analyze`'s:
+> it trips when the verdict is not a duplicate, has no `duplicate_of` target, **or**
+> `confidence < DUPLICATE_CONFIDENCE_THRESHOLD` (0.85) — so the Forge action only
+> auto-links when it is safe. The flag is surfaced on the envelope, not the schema.
 
 > `/analyze` fetches the incident by key, so `rca_draft` is a `trace_core.RcaDraft` and
 > `flag_for_human` is `confidence_score < CONFIDENCE_THRESHOLD` (0.70) — surfaced on the

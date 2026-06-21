@@ -10,7 +10,7 @@ from ``trace_core`` and are never redefined.
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
-from trace_core import RcaDraft, SearchResult
+from trace_core import DuplicateVerdict, RcaDraft, SearchResult
 
 
 class AnalyzeResult(BaseModel):
@@ -31,4 +31,22 @@ class AnalyzeResult(BaseModel):
     )
     flag_for_human: bool = Field(
         description="True when the draft's confidence is below CONFIDENCE_THRESHOLD."
+    )
+
+
+class DuplicateResult(BaseModel):
+    """Result of ``POST /duplicates``: a duplicate verdict plus its candidate evidence.
+
+    ``flag_for_human`` is derived from the verdict (see
+    :func:`atlassian_remote.duplicate_resolver.needs_human_review`); it is surfaced
+    here rather than on :class:`~trace_core.DuplicateVerdict`, whose schema stays a
+    pure model contract.
+    """
+
+    verdict: DuplicateVerdict = Field(description="The structured duplicate verdict.")
+    similar: list[SearchResult] = Field(
+        description="Similar past incidents retrieved from xqdrant (above threshold)."
+    )
+    flag_for_human: bool = Field(
+        description="True when the verdict is not confident enough to auto-link."
     )

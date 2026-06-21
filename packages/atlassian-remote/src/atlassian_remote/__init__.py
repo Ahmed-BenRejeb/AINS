@@ -12,18 +12,22 @@ schema comes from ``trace_core`` and is never redefined here.
 
 from __future__ import annotations
 
-from .analyzer import analyze_incident
+from .analyzer import analyze_incident, resolve_incident_duplicate
 from .cf_ai_client import cf_ai_chat, cf_ai_embed
-from .models import AnalyzeResult
+from .duplicate_resolver import resolve_duplicate
+from .models import AnalyzeResult, DuplicateResult
 from .rca_generator import generate_rca, needs_human_review
 from .vector_search import search_similar
 
 __all__ = [
     "AnalyzeResult",
+    "DuplicateResult",
     "analyze_incident",
     "cf_ai_chat",
     "cf_ai_embed",
     "generate_rca",
     "needs_human_review",
+    "resolve_duplicate",
+    "resolve_incident_duplicate",
     "search_similar",
 ]

@@ -16,10 +16,10 @@ from typing import Any
 
 from trace_core import MAX_RETRIEVAL_RESULTS
 
-from . import rca_generator, vector_search
+from . import duplicate_resolver, rca_generator, vector_search
 from .atlassian_client import AtlassianClient
 from .config import incidents_collection, runbooks_collection
-from .models import AnalyzeResult
+from .models import AnalyzeResult, DuplicateResult
 
 
 def _adf_to_text(node: Any) -> str:
@@ -92,4 +92,40 @@ async def analyze_incident(
         similar=similar,
         runbooks=runbooks,
         flag_for_human=rca_generator.needs_human_review(draft),
+    )
+
+
+async def resolve_incident_duplicate(
+    incident_key: str,
+    requested_by: str,
+    *,
+    k: int = MAX_RETRIEVAL_RESULTS,
+) -> DuplicateResult:
+    """Run the semantic-duplicate-resolution pipeline for one Jira incident.
+
+    Fetches the incident, flattens it to text, retrieves the most similar past
+    incidents from xqdrant (incidents only — duplicates are incident-to-incident),
+    judges whether it is a semantic duplicate (:mod:`duplicate_resolver`), and
+    gates the verdict for human review.
+
+    Args:
+        incident_key: The Jira issue key to check (e.g. ``AO-123``).
+        requested_by: Atlassian account id of the requester (for audit context).
+        k: Top-k cap for the xqdrant retrieval.
+
+    Returns:
+        A :class:`DuplicateResult` with the verdict, supporting hits, and the
+        human-review flag.
+    """
+    del requested_by  # Carried for audit context; not used in the computation.
+    issue = await AtlassianClient().get_issue(incident_key)
+    incident_text = extract_incident_text(issue)
+
+    similar = await vector_search.search_similar(incident_text, incidents_collection(), k=k)
+
+    verdict = await duplicate_resolver.resolve_duplicate(incident_text, similar)
+    return DuplicateResult(
+        verdict=verdict,
+        similar=similar,
+        flag_for_human=duplicate_resolver.needs_human_review(verdict),
     )

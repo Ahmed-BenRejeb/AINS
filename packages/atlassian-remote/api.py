@@ -18,7 +18,7 @@ import logging
 
 from atlassian_remote import analyzer, cf_ai_client, vector_search
 from atlassian_remote.config import forge_remote_secret
-from atlassian_remote.models import AnalyzeResult
+from atlassian_remote.models import AnalyzeResult, DuplicateResult
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 from trace_core import MAX_RETRIEVAL_RESULTS, SearchResult
@@ -55,6 +55,13 @@ class AnalyzeRequest(BaseModel):
     """Body for ``POST /analyze``."""
 
     incident_key: str = Field(description="Jira issue key to analyse (e.g. 'AO-123').")
+    requested_by: str = Field(description="Atlassian account id of the requester.")
+
+
+class DuplicateRequest(BaseModel):
+    """Body for ``POST /duplicates``."""
+
+    incident_key: str = Field(description="Jira issue key to check for duplicates (e.g. 'AO-123').")
     requested_by: str = Field(description="Atlassian account id of the requester.")
 
 
@@ -98,6 +105,14 @@ async def analyze(
 ) -> AnalyzeResult:
     """Analyse an incident: retrieve evidence and draft a structured RCA."""
     return await analyzer.analyze_incident(request.incident_key, request.requested_by)
+
+
+@app.post("/duplicates")
+async def duplicates(
+    request: DuplicateRequest, account_id: str = Depends(verify_request)
+) -> DuplicateResult:
+    """Judge whether an incident is a semantic duplicate of a past one."""
+    return await analyzer.resolve_incident_duplicate(request.incident_key, request.requested_by)
 
 
 @app.post("/search")

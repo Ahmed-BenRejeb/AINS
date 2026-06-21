@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from atlassian_remote import analyzer, rca_generator, vector_search
+from atlassian_remote import analyzer, duplicate_resolver, rca_generator, vector_search
 from atlassian_remote.atlassian_client import AtlassianClient
-from trace_core import Attribution, RcaDraft, SearchResult
+from trace_core import Attribution, DuplicateVerdict, RcaDraft, SearchResult
 
 _ISSUE = {
     "key": "AO-1",
@@ -90,3 +90,38 @@ async def test_analyze_incident_orchestrates_pipeline(monkeypatch: pytest.Monkey
     assert [s.id for s in result.similar] == ["INC-1"]
     assert result.runbooks == []
     assert result.flag_for_human is True
+
+
+async def test_resolve_incident_duplicate_orchestrates_pipeline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """fetch → search incidents → judge duplicate → flag, all wired correctly."""
+
+    async def fake_get_issue(_self: AtlassianClient, _key: str) -> dict[str, Any]:
+        return _ISSUE
+
+    monkeypatch.setattr(AtlassianClient, "get_issue", fake_get_issue)
+
+    async def fake_search(_query: str, collection: str, k: int = 5) -> list[SearchResult]:
+        return [_hit()] if collection == "incidents" else []
+
+    monkeypatch.setattr(vector_search, "search_similar", fake_search)
+
+    async def fake_resolve(_text: str, _similar: list[SearchResult]) -> DuplicateVerdict:
+        return DuplicateVerdict(
+            is_duplicate=True,
+            duplicate_of="INC-1",
+            confidence=0.92,
+            rationale="same root cause",
+            explanation="Looks like a duplicate of INC-1.",
+            candidates=[],
+        )
+
+    monkeypatch.setattr(duplicate_resolver, "resolve_duplicate", fake_resolve)
+
+    result = await analyzer.resolve_incident_duplicate("AO-1", "acc-123")
+
+    assert result.verdict.is_duplicate is True
+    assert result.verdict.duplicate_of == "INC-1"
+    assert [s.id for s in result.similar] == ["INC-1"]
+    assert result.flag_for_human is False  # confident → safe to auto-link

@@ -32,6 +32,16 @@ return needs_human_review``. A low-confidence verdict auto-files a "Human Review
 Required" Jira issue (self-evaluation bonus point).
 """
 
+DUPLICATE_CONFIDENCE_THRESHOLD: Final[float] = 0.85
+"""Minimum judge confidence to AUTO-link two Jira issues as duplicates (UC3).
+
+Origin: UC3 Semantic Duplicate Resolver workflow. Deliberately stricter than
+:data:`CONFIDENCE_THRESHOLD` (0.70) because auto-mutating Jira (creating an issue
+link + posting a comment) is higher-stakes than drafting an RCA comment a human
+reviews. Below this, the resolver degrades gracefully — it surfaces candidate
+matches and flags for a human instead of writing.
+"""
+
 VECTOR_SIMILARITY_THRESHOLD: Final[float] = 0.75
 """Minimum cosine similarity for a vector-search hit to count as relevant.
 

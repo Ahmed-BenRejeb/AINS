@@ -1,6 +1,6 @@
 /** Shared fixtures for the agent tests (not a test file — no *.test.ts suffix). */
 
-import type { AnalyzeResult, SearchResult } from '../src/lib/contract';
+import type { AnalyzeResult, DuplicateResult, SearchResult } from '../src/lib/contract';
 
 export const hitFixture: SearchResult = {
   id: 'INC-1',
@@ -22,5 +22,18 @@ export const analysisFixture: AnalyzeResult = {
   },
   similar: [hitFixture],
   runbooks: [],
+  flag_for_human: false,
+};
+
+export const duplicateFixture: DuplicateResult = {
+  verdict: {
+    is_duplicate: true,
+    duplicate_of: 'INC-1',
+    confidence: 0.91,
+    rationale: 'same pool exhaustion, different wording',
+    explanation: 'This looks like a duplicate of INC-1; linking them.',
+    candidates: [],
+  },
+  similar: [hitFixture],
   flag_for_human: false,
 };
