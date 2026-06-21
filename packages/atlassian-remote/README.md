@@ -7,10 +7,11 @@ Everything that the Forge sandbox cannot run: text embedding, vector search, and
 
 ## What Goes Here
 
-- FastAPI server exposing `/analyze`, `/search`, `/embed`, `/health` endpoints
+- FastAPI server exposing `/analyze`, `/duplicates`, `/search`, `/embed`, `/health` endpoints
 - Text embedder (`@cf/baai/bge-base-en-v1.5` via Cloudflare Workers AI)
 - Vector search client (xqdrant at `localhost:6333` — incidents + runbooks collections)
 - RCA generator (CF Workers AI Llama 3.3 70B, structured Pydantic output)
+- Semantic duplicate resolver (`duplicate_resolver.py` — CF Workers AI judges whether an incident duplicates a past one → `DuplicateVerdict`)
 - Shared CF Workers AI client (`cf_ai_client.py` — chat + embed; retries 429/5xx with backoff)
 - Shared Atlassian REST client (with exponential backoff for 429s)
 - The Phase 4 loop glue: records each `/analyze` run with UC2 (`recording.py`) and hands the `run_id` to UC1 for judging (`eval_client.py`)
@@ -37,14 +38,15 @@ atlassian-remote/
 │   ├── cf_ai_client.py          CF Workers AI calls (chat + embed)
 │   ├── vector_search.py         xqdrant queries (localhost:6333, internal only)
 │   ├── rca_generator.py         CF Workers AI RCA drafting (structured RcaDraft output)
-│   ├── analyzer.py              /analyze loop: fetch → record → embed+search → draft → manifest → eval
+│   ├── duplicate_resolver.py    semantic-duplicate judge via CF Workers AI → DuplicateVerdict
+│   ├── analyzer.py              /analyze loop (record→draft→manifest→eval) + /duplicates resolution
 │   ├── recording.py             RunRecorder (UC2 AsyncRecordingTransport) + run-manifest write
 │   ├── eval_client.py           POST run_id → eval-engine /evaluate → EvalVerdict (best-effort)
 │   ├── atlassian_client.py      Atlassian REST client with 429 backoff
-│   └── models.py                AnalyzeResult envelope (+ run_id, eval_verdict, replay_link)
+│   └── models.py                AnalyzeResult (+ run_id/eval_verdict/replay_link) + DuplicateResult envelopes
 └── tests/
     ├── conftest.py              dummy env; all external calls mocked (pytest-httpx)
-    ├── unit/                    cf_ai_client / atlassian_client / vector_search / rca_generator / analyzer
+    ├── unit/                    cf_ai_client / atlassian_client / vector_search / rca_generator / duplicate_resolver / analyzer
     └── integration/             FastAPI route tests + test_full_loop (record→eval, all mocked)
 ```
 
