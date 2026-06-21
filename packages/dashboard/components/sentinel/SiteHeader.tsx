@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ShieldCheck, FlaskConical, ArrowUpRight } from "lucide-react";
+import { FlaskConical, ArrowUpRight } from "lucide-react";
+import { SentinelMark } from "./Logo";
 import { LANGFUSE_URL } from "@/lib/api";
 import { cn, withMock } from "@/lib/utils";
 
@@ -25,14 +26,11 @@ export function SiteHeader() {
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-hairline/70 bg-canvas/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-hairline/80 bg-canvas/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-[1180px] items-center gap-6 px-5 md:px-8">
         <Link href={withMock("/", mock)} className="group flex items-center gap-2.5">
-          <span className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-hairline-strong bg-surface">
-            <ShieldCheck className="h-4 w-4 text-accent" aria-hidden />
-            <span className="absolute inset-0 rounded-lg ring-1 ring-accent/0 transition-[box-shadow] duration-300 ease-out group-hover:ring-accent/30" />
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight">Sentinel</span>
+          <SentinelMark className="h-7 w-7 text-foreground transition-transform duration-300 ease-out group-hover:scale-105" />
+          <span className="font-display text-[17px] font-semibold tracking-[-0.01em]">Sentinel</span>
         </Link>
 
         <nav className="hidden items-center gap-1 sm:flex">

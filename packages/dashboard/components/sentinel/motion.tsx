@@ -14,7 +14,12 @@ import { cn } from "@/lib/utils";
 // Strong ease-out (emil-design-eng). Movement starts fast → feels responsive.
 export const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 
-/** Page transition: fade + slight upward movement. */
+/**
+ * Page transition: fade + slight upward movement. Implemented as a paint-time CSS
+ * animation (not a JS-mount transition) so content is never gated on hydration or
+ * an observer — it renders visible even before JS runs, and the fade is pure
+ * enhancement. Reduced motion collapses it to instant (globals.css).
+ */
 export function PageTransition({
   children,
   className,
@@ -22,16 +27,7 @@ export function PageTransition({
   children: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: EASE_OUT }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={cn("motion-safe:animate-fade-up", className)}>{children}</div>;
 }
 
 /** Card with a hover lift (y: -2px) and a deepening shadow. */

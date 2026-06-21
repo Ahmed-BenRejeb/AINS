@@ -18,24 +18,24 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Neutral ramp (cool near-black, tinted a hair toward the emerald hue).
-        canvas: "#070809",
-        "canvas-2": "#0B0D0F",
-        surface: "#101315",
-        "surface-2": "#151A1D",
-        hairline: "#1E2427",
-        "hairline-strong": "#2A3236",
+        // Neutral ramp: near-black tinted toward the emerald hue (instrument green-black).
+        canvas: "#06090A",
+        "canvas-2": "#0A0F10",
+        surface: "#0E1413",
+        "surface-2": "#131B19",
+        hairline: "#1C2522",
+        "hairline-strong": "#27332F",
         background: "#070809",
         foreground: "#E8EDEC",
         muted: {
-          DEFAULT: "#151A1D",
-          foreground: "#8B9794",
+          DEFAULT: "#131B19",
+          foreground: "#8A9A94",
         },
         // Back-compat aliases (older components use these names) mapped to the new
         // palette so the inner screens inherit the refreshed surfaces.
-        card: "#101315",
-        "card-hover": "#151A1D",
-        border: "#1E2427",
+        card: "#0E1413",
+        "card-hover": "#131B19",
+        border: "#1C2522",
         // Single brand accent.
         accent: {
           DEFAULT: "#34E5B0", // emerald-mint signal
@@ -49,6 +49,10 @@ const config: Config = {
         },
       },
       fontFamily: {
+        // Distinctive display grotesque (Bricolage) — deliberately not Geist for
+        // headlines, to escape the Vercel-clone reflex. Geist Sans for body, Geist
+        // Mono for telemetry (ids / scores), which the instrument register earns.
+        display: ['"Bricolage Grotesque Variable"', "var(--font-geist-sans)", "sans-serif"],
         sans: ["var(--font-geist-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
       },

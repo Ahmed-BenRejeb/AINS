@@ -17,14 +17,28 @@ Runs on **port 3001**.
 The look was built against `.agents/skills/{emil-design-eng, design-taste-frontend, impeccable}`.
 The committed decisions (locks):
 
-- **Theme lock:** one dark canvas (`#070809`). **Accent lock:** one emerald accent
-  (`#34E5B0`); red/amber appear **only** as real pass/fail/uncertain verdict state.
-- **Type:** Geist Sans + Geist Mono (self-hosted via the `geist` package, no remote
-  font host). Mono for ids/scores, sans for content. Display tracking `-0.03em`.
+- **POV (anti-generic):** Sentinel as an *instrument / black-box flight recorder*,
+  not generic emerald-on-black SaaS. The brand **hexagon-shield logo**
+  (`components/sentinel/Logo.tsx`: `SentinelMark` / `SentinelEmblem` / `SentinelLockup`,
+  reproduced from `sentinel_logo.svg`, themeable via currentColor) is the recurring
+  motif: nav mark, an animated radar-sweep emblem in the hero, footer lockup, favicon
+  (`app/icon.svg`), and a faint `.hexmesh` background texture.
+- **Theme lock:** one green-tinted near-black canvas (`#06090A`). **Accent lock:** one
+  emerald accent (`#34E5B0`); red/amber appear **only** as real verdict state.
+- **Type:** **Bricolage Grotesque Variable** (display, via
+  `@fontsource-variable/bricolage-grotesque/wght.css` — distinctive, deliberately not
+  Geist for headlines, to escape the Vercel-clone reflex) + **Geist Sans** (body) +
+  **Geist Mono** (telemetry: ids / scores / readouts). All self-hosted, offline-safe.
+- **Bolder, not louder (impeccable `bolder` for product):** stronger hierarchy +
+  extreme scale (huge mono stat band), instrument-bezel framing (`.bezel` corner ticks,
+  not glass), reduced glassmorphism. No theatrics.
 - **Motion:** strong ease-out curves (`cubic-bezier(0.23,1,0.32,1)`), durations
   < 300ms for UI, stagger 55ms, springs only for "alive" elements (hero tilt).
-  Every below-the-fold reveal **defaults to visible** and animates as enhancement
-  (counters/rings render their real value even if the observer never fires).
+  **Every reveal is paint-time CSS** (`motion-safe:animate-fade-up`), never gated on
+  JS-mount opacity or a scroll observer, so content is visible even before hydration
+  (the home hero, the loop, recent verdicts, and `PageTransition` were all converted
+  off framer `initial="hidden"` after a headless capture caught them shipping blank).
+  Counters/rings also render their real value if the count-up never fires.
   `prefers-reduced-motion` collapses movement (globals.css).
 - **Bans honored:** zero em-dashes in visible copy (use `-` / `.` / `,`), no gradient
   text, no AI-purple, no fake `<div>` screenshots (the hero uses a **real** component
