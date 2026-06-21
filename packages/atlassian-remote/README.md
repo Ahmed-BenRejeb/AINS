@@ -11,7 +11,7 @@ Everything that the Forge sandbox cannot run: text embedding, vector search, and
 - Text embedder (`@cf/baai/bge-base-en-v1.5` via Cloudflare Workers AI)
 - Vector search client (xqdrant at `localhost:6333` — incidents + runbooks collections)
 - RCA generator (CF Workers AI Llama 3.3 70B, structured Pydantic output)
-- Shared CF Workers AI client (`cf_ai_client.py` — chat + embed)
+- Shared CF Workers AI client (`cf_ai_client.py` — chat + embed; retries 429/5xx with backoff)
 - Shared Atlassian REST client (with exponential backoff for 429s)
 - The Phase 4 loop glue: records each `/analyze` run with UC2 (`recording.py`) and hands the `run_id` to UC1 for judging (`eval_client.py`)
 

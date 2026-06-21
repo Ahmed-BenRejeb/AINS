@@ -13,7 +13,9 @@ real network call is made.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 from typing import Any
 
 import httpx
@@ -29,12 +31,46 @@ from .config import (
 )
 from .models import SafetyResult
 
+logger = logging.getLogger("eval_engine.cf_ai_client")
+
 _SAFE_TOKEN = "safe"
 _UNSAFE_TOKEN = "unsafe"
+
+# CF Workers AI retry policy (root CLAUDE.md §10): the free tier rate-limits under
+# heavy load. 429 → long backoff, a few times; transient 5xx → short backoff.
+_RATE_LIMIT_STATUS = 429
+_RATE_LIMIT_MAX_RETRIES = 3
+_RATE_LIMIT_BACKOFF_SECONDS = 30.0
+_SERVER_ERROR_MAX_RETRIES = 2
+_SERVER_ERROR_BACKOFF_SECONDS = 5.0
+
+
+def _retry_delay(status_code: int, attempt: int) -> float | None:
+    """Backoff (seconds) for a retryable CF Workers AI status, or ``None``.
+
+    Args:
+        status_code: HTTP status from the failed response.
+        attempt: Retries already performed (0 on the first failure).
+
+    Returns:
+        Seconds to wait before the next retry, or ``None`` when the status is not
+        retryable or its retry budget is exhausted.
+    """
+    if status_code == _RATE_LIMIT_STATUS:
+        return _RATE_LIMIT_BACKOFF_SECONDS if attempt < _RATE_LIMIT_MAX_RETRIES else None
+    if 500 <= status_code < 600:
+        return _SERVER_ERROR_BACKOFF_SECONDS if attempt < _SERVER_ERROR_MAX_RETRIES else None
+    return None
 
 
 async def _post(model: str, payload: dict[str, Any]) -> dict[str, Any]:
     """POST a payload to a Workers AI model and return its ``result`` object.
+
+    Retries on rate limiting and transient server errors (root CLAUDE.md §10):
+    a ``429`` waits ``30s`` and retries up to 3 times; a ``5xx`` waits ``5s`` and
+    retries up to 2 times. Other statuses (and exhausted budgets) raise
+    :class:`httpx.HTTPStatusError`. Waits use :func:`asyncio.sleep` so the event
+    loop stays free.
 
     Args:
         model: The CF model id (e.g. ``@cf/meta/llama-3.3-70b-instruct-fp8-fast``).
@@ -42,17 +78,37 @@ async def _post(model: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     Returns:
         The ``result`` object from the Workers AI response envelope.
+
+    Raises:
+        httpx.HTTPStatusError: On a non-retryable status or once retries are spent.
     """
-    async with httpx.AsyncClient(timeout=CF_TIMEOUT_SECONDS) as client:
-        response = await client.post(
-            f"{cf_ai_url()}/{model}",
-            headers={"Authorization": f"Bearer {cf_api_token()}"},
-            json=payload,
-        )
-        response.raise_for_status()
+    attempt = 0
+    while True:
+        async with httpx.AsyncClient(timeout=CF_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                f"{cf_ai_url()}/{model}",
+                headers={"Authorization": f"Bearer {cf_api_token()}"},
+                json=payload,
+            )
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            delay = _retry_delay(exc.response.status_code, attempt)
+            if delay is None:
+                raise
+            attempt += 1
+            logger.warning(
+                "CF Workers AI %s for model %s; retry %d after %.0fs backoff",
+                exc.response.status_code,
+                model,
+                attempt,
+                delay,
+            )
+            await asyncio.sleep(delay)
+            continue
         body: dict[str, Any] = response.json()
-    result: dict[str, Any] = body.get("result", {})
-    return result
+        result: dict[str, Any] = body.get("result", {})
+        return result
 
 
 async def cf_ai_chat(
