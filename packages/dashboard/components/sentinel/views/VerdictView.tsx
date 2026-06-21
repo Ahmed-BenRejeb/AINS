@@ -22,7 +22,7 @@ export function VerdictView({
   mock: boolean;
 }) {
   return (
-    <PageTransition className="space-y-6">
+    <PageTransition className="mx-auto w-full max-w-[1180px] space-y-6 px-5 py-10 md:px-8">
       <PageHeader
         title="Evaluation verdict"
         subtitle={

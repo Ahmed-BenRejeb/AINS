@@ -312,7 +312,7 @@ const PASS_VERDICT = (runId: string, trial = 0): EvalVerdict => ({
     flag_for_human: false,
   },
   replay_link: `https://flight.ahmedxsaad.me/replay/${runId}`,
-  recommended_action: "No action required — verdict is a confident pass. Safe to auto-post the RCA comment.",
+  recommended_action: "No action required. The verdict is a confident pass. Safe to auto-post the RCA comment.",
 });
 
 const mockVerdicts: Record<string, EvalVerdict> = {
@@ -343,7 +343,7 @@ const mockVerdicts: Record<string, EvalVerdict> = {
       reasoning_quality: {
         score: 0.31,
         reason:
-          "The draft asserts a root cause the evidence does not back up — a confident hallucination on thin retrieval.",
+          "The draft asserts a root cause the evidence does not back up, a confident hallucination on thin retrieval.",
         confidence: 0.8,
       },
     },
@@ -395,7 +395,7 @@ const mockVerdicts: Record<string, EvalVerdict> = {
       step: 5,
       component: "planning",
       description:
-        "The final RCA draft proposed severity 'low' for a customer-facing checkout latency spike — a severity-calibration error in the generation step.",
+        "The final RCA draft proposed severity 'low' for a customer-facing checkout latency spike, a severity-calibration error in the generation step.",
       confidence: 0.79,
     },
     self_evaluation: {
@@ -406,7 +406,7 @@ const mockVerdicts: Record<string, EvalVerdict> = {
     },
     replay_link: `https://flight.ahmedxsaad.me/replay/${RUN_IDS.fail2}`,
     recommended_action:
-      "Flag for human triage — severity is likely high/critical. Confirm impact, then re-run with a severity-calibration hint.",
+      "Flag for human triage. Severity is likely high or critical. Confirm impact, then re-run with a severity-calibration hint.",
   },
   [RUN_IDS.uncertain1]: {
     run_id: RUN_IDS.uncertain1,
@@ -444,7 +444,7 @@ const mockVerdicts: Record<string, EvalVerdict> = {
     },
     replay_link: `https://flight.ahmedxsaad.me/replay/${RUN_IDS.uncertain1}`,
     recommended_action:
-      "Human review required — the judge's verdict was order-sensitive (position_bias_detected). A reviewer should confirm the root cause before posting.",
+      "Human review required. The judge was order-sensitive (position_bias_detected). A reviewer should confirm the root cause before posting.",
   },
 };
 

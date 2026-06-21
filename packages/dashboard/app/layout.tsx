@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { SiteHeader } from "@/components/sentinel/SiteHeader";
 
 export const metadata: Metadata = {
-  title: "Sentinel — AI Agent Reliability Platform",
+  title: "Sentinel · AI Agent Reliability Platform",
   description:
     "Record, judge, and replay AI agent runs. Auditable verdicts with failure attribution for the Atlassian ecosystem.",
 };
 
 /**
- * Root layout: applies the dark canvas and the persistent top navigation.
- * Fonts use system stacks (declared in globals.css) so the build never depends on
- * a remote font host — children render inside a generously padded content column.
+ * Root layout: dark mission-control shell, Geist type (self-hosted via the geist
+ * package, no remote font host), a fixed grain overlay, and the sticky nav.
  */
 export default function RootLayout({
   children,
@@ -20,12 +21,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-canvas">
-        <Suspense fallback={null}>
-          <SiteHeader />
-        </Suspense>
-        <main className="mx-auto w-full max-w-6xl px-6 py-10 md:px-8">{children}</main>
+    <html
+      lang="en"
+      className={`${GeistSans.variable} ${GeistMono.variable} dark`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-screen bg-canvas font-sans">
+        {/* Page-wide grain. Fixed + non-interactive so it never repaints on scroll. */}
+        <div
+          className="grain pointer-events-none fixed inset-0 z-[1] opacity-[0.035]"
+          aria-hidden
+        />
+        <div className="relative z-[2]">
+          <Suspense fallback={null}>
+            <SiteHeader />
+          </Suspense>
+          {children}
+        </div>
       </body>
     </html>
   );

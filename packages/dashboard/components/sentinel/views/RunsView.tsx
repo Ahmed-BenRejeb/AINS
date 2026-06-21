@@ -37,7 +37,7 @@ export function RunsView({
   const router = useRouter();
 
   return (
-    <PageTransition className="space-y-6">
+    <PageTransition className="mx-auto w-full max-w-[1180px] space-y-6 px-5 py-10 md:px-8">
       <PageHeader
         title="Recorded runs"
         subtitle={`${runs.length} run${runs.length === 1 ? "" : "s"} captured by the flight recorder`}

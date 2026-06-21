@@ -1,11 +1,11 @@
 import { getOverview, isMock } from "@/lib/api";
-import { HomeView } from "@/components/sentinel/views/HomeView";
+import { HomeLanding } from "@/components/sentinel/views/HomeLanding";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Home / overview. Server-fetches the run + verdict overview (with mock support)
- * and hands it to the animated client view.
+ * Home / landing. Server-fetches the run + verdict overview (with mock support)
+ * and hands it to the animated landing showpiece.
  */
 export default async function HomePage({
   searchParams,
@@ -15,7 +15,7 @@ export default async function HomePage({
   const mock = isMock(await searchParams);
   const { data, source, error } = await getOverview(mock);
   return (
-    <HomeView
+    <HomeLanding
       stats={data.stats}
       summaries={data.summaries}
       source={source}

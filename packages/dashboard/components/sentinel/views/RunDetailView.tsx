@@ -41,7 +41,7 @@ export function RunDetailView({
   const stepCount = manifest?.step_count ?? trace.length;
 
   return (
-    <PageTransition className="space-y-6">
+    <PageTransition className="mx-auto w-full max-w-[1180px] space-y-6 px-5 py-10 md:px-8">
       <PageHeader
         title="Execution trace"
         subtitle={
@@ -75,13 +75,13 @@ export function RunDetailView({
       <Card>
         <CardContent className="grid grid-cols-2 gap-y-5 p-5 sm:grid-cols-3 lg:grid-cols-4">
           <MetaItem label="Run ID" value={truncateId(run_id, 12)} mono />
-          <MetaItem label="Agent" value={manifest?.agent_id ?? "—"} mono />
+          <MetaItem label="Agent" value={manifest?.agent_id ?? "-"} mono />
           <MetaItem
             label="Status"
             value={<RunStatusBadge value={String(manifest?.status ?? "completed")} kind="status" />}
           />
           <MetaItem label="Steps" value={<span className="font-mono tabular-nums">{stepCount}</span>} />
-          <MetaItem label="Task" value={manifest?.task_id ?? "—"} />
+          <MetaItem label="Task" value={manifest?.task_id ?? "-"} />
           <MetaItem label="Mode" value={manifest?.flight_mode ?? "record"} mono />
           <MetaItem label="Started" value={formatTimestamp(manifest?.started_at)} />
           <MetaItem label="Completed" value={formatTimestamp(manifest?.completed_at)} />

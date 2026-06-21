@@ -14,7 +14,7 @@ export function withMock(href: string, mock: boolean): string {
 
 /** Truncate an identifier to its first `n` characters (default 8) for display. */
 export function truncateId(id: string | null | undefined, n = 8): string {
-  if (!id) return "—";
+  if (!id) return "-";
   return id.length <= n ? id : id.slice(0, n);
 }
 
@@ -26,13 +26,13 @@ export function truncate(text: string | null | undefined, n = 100): string {
 
 /** Format a 0–1 ratio as a whole-number percentage string, e.g. "82%". */
 export function pct(ratio: number | null | undefined): string {
-  if (ratio === null || ratio === undefined || Number.isNaN(ratio)) return "—";
+  if (ratio === null || ratio === undefined || Number.isNaN(ratio)) return "-";
   return `${Math.round(ratio * 100)}%`;
 }
 
 /** Format an ISO timestamp as a compact, locale-stable absolute string. */
 export function formatTimestamp(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("en-US", {
@@ -46,7 +46,7 @@ export function formatTimestamp(iso: string | null | undefined): string {
 
 /** Relative "time ago" for recency cues; falls back to absolute on parse failure. */
 export function timeAgo(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const seconds = Math.round((Date.now() - d.getTime()) / 1000);

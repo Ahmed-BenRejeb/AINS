@@ -5,12 +5,30 @@
 ## What This Package Does
 
 **The unified Sentinel UI.** A Next.js 16 (App Router, Turbopack) app that gives judges the
-human-facing view of the whole system: the overview/health, recorded agent runs,
+human-facing view of the whole system: a **landing/overview home**, recorded agent runs,
 per-run execution traces, eval verdicts (with failure attribution + self-eval),
-and deterministic replay/bisect. Premium dev-tool feel (Vercel/Linear), dark
-theme, Framer Motion throughout.
+and deterministic replay/bisect. **Mission-control** dark theme, a single emerald
+signal accent, Geist type, Framer Motion throughout.
 
 Runs on **port 3001**.
+
+## Design system (the three skills)
+
+The look was built against `.agents/skills/{emil-design-eng, design-taste-frontend, impeccable}`.
+The committed decisions (locks):
+
+- **Theme lock:** one dark canvas (`#070809`). **Accent lock:** one emerald accent
+  (`#34E5B0`); red/amber appear **only** as real pass/fail/uncertain verdict state.
+- **Type:** Geist Sans + Geist Mono (self-hosted via the `geist` package, no remote
+  font host). Mono for ids/scores, sans for content. Display tracking `-0.03em`.
+- **Motion:** strong ease-out curves (`cubic-bezier(0.23,1,0.32,1)`), durations
+  < 300ms for UI, stagger 55ms, springs only for "alive" elements (hero tilt).
+  Every below-the-fold reveal **defaults to visible** and animates as enhancement
+  (counters/rings render their real value even if the observer never fires).
+  `prefers-reduced-motion` collapses movement (globals.css).
+- **Bans honored:** zero em-dashes in visible copy (use `-` / `.` / `,`), no gradient
+  text, no AI-purple, no fake `<div>` screenshots (the hero uses a **real** component
+  preview: `ReliabilityRing` + live verdict chips), radius cap 16px on surfaces.
 
 ## Stack
 
@@ -20,21 +38,19 @@ Runs on **port 3001**.
 - **Tailwind CSS** with a small hand-rolled **shadcn-style** primitive set
   (`components/ui/*`) — built by hand rather than via the shadcn CLI so the build
   needs no network. Uses `class-variance-authority` + `clsx` + `tailwind-merge`.
-- **Framer Motion** for all animation (page fade-in, verdict scale-spring + green
-  pulse / red shake, staggered step timeline, hover lift, counting stats).
-- **lucide-react** icons.
-- Fonts use **system stacks** (declared in `app/globals.css`), not
-  `next/font/google`, so the production build never depends on a remote font host.
+- **Framer Motion** for all animation; **lucide-react** icons (the project already
+  depends on it, so it is the allowed family).
+- **geist** font package for Geist Sans/Mono (offline-safe, no `next/font/google`).
 
 ## Key Files
 
 ```
 dashboard/
 ├── package.json            scripts: dev/build/start (port 3001), lint, typecheck, format, test (=tsc)
-├── tailwind.config.ts      dark palette: canvas #0A0A0A, card #141414, hairline #1F1F1F + verdict accents
+├── tailwind.config.ts      mission-control palette: canvas #070809, surface #101315, emerald accent + verdict state colours + emil easing curves (card/border tokens kept as back-compat aliases)
 ├── app/
-│   ├── layout.tsx          dark shell + SiteHeader (Suspense-wrapped: it reads searchParams)
-│   ├── globals.css         theme tokens, grid texture, scrollbar, font-var stacks
+│   ├── layout.tsx          dark shell + grain overlay + Geist vars + SiteHeader (Suspense-wrapped)
+│   ├── globals.css         theme tokens, aurora/grain/dotgrid utilities, easing vars, reduced-motion block
 │   ├── loading.tsx         skeleton route-transition state (never spinners)
 │   ├── error.tsx           last-resort boundary (offers "open demo / mock")
 │   ├── not-found.tsx
@@ -52,9 +68,10 @@ dashboard/
 │       ├── StepTimeline.tsx     staggered vertical execution timeline
 │       ├── DimensionTable.tsx   per-dimension rubric scores (right-aligned, inline conf bar)
 │       ├── AttributionBox.tsx   failure attribution headline
-│       ├── StatsRow.tsx         home metric cards w/ count-up
-│       ├── AnimatedCounter / ConfidenceBar / DataSourceBadge / EmptyState / PageHeader / SiteHeader / motion
-│       └── views/               *View client components (animation + interactivity) per screen
+│       ├── ReliabilityRing.tsx  animated SVG pass-rate gauge (hero showpiece)
+│       ├── motion.tsx           PageTransition / HoverCard / Tilt (mouse-spring) / stagger variants + EASE_OUT
+│       ├── AnimatedCounter / ConfidenceBar / DataSourceBadge / EmptyState / PageHeader / SiteHeader
+│       └── views/               HomeLanding (the landing showpiece) + *View client components per screen
 └── lib/
     ├── api.ts              server-side fetch wrappers, ?mock support, live→mock fallback
     ├── mock-data.ts        realistic fixtures matching the live API shapes exactly

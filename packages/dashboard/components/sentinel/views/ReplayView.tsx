@@ -71,7 +71,7 @@ export function ReplayView({
   }
 
   return (
-    <PageTransition className="space-y-6">
+    <PageTransition className="mx-auto w-full max-w-[1180px] space-y-6 px-5 py-10 md:px-8">
       <PageHeader
         title="Deterministic replay"
         subtitle={<span className="font-mono">{runId}</span>}
@@ -91,7 +91,7 @@ export function ReplayView({
           <p className="text-sm leading-relaxed text-muted-foreground">
             Replay re-drives this run against its recorded cassette. Every LLM and tool call is
             served from tape, so a clean replay makes{" "}
-            <span className="font-medium text-foreground">zero live API calls</span> — proving the
+            <span className="font-medium text-foreground">zero live API calls</span>. It proves the
             run is reproducible and audit-stable.
           </p>
           <a
@@ -125,8 +125,8 @@ export function ReplayView({
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Compare a known-good run against a known-bad one to find the first diverging step —
-            regression triage for agent behaviour.
+            Compare a known-good run against a known-bad one to find the first diverging step.
+            Regression triage for agent behaviour.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1.5">
@@ -210,8 +210,8 @@ function ReplayResultPanel({ result }: { result: Loaded<ReplayResult> }) {
     <div className="space-y-3">
       <ResultBanner
         ok={clean}
-        okText={`Replay complete — ${r.live_call_count} live API calls, ${r.recorded_steps} steps reproduced exactly.`}
-        badText={`Replay diverged — ${r.divergences.length} divergence${r.divergences.length === 1 ? "" : "s"} detected.`}
+        okText={`Replay complete. ${r.live_call_count} live API calls, ${r.recorded_steps} steps reproduced exactly.`}
+        badText={`Replay diverged. ${r.divergences.length} divergence${r.divergences.length === 1 ? "" : "s"} detected.`}
       />
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Recorded steps" value={String(r.recorded_steps)} />
@@ -239,7 +239,7 @@ function ReplayResultPanel({ result }: { result: Loaded<ReplayResult> }) {
       {clean && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5 text-verdict-pass" aria-hidden />
-          Hash-chained audit trail verified — the run is byte-for-byte reproducible.
+          Hash-chained audit trail verified. The run is byte for byte reproducible.
         </p>
       )}
     </div>
@@ -252,7 +252,7 @@ function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
     <div className="space-y-3">
       <ResultBanner
         ok={b.identical}
-        okText="Runs are identical — no divergence found."
+        okText="Runs are identical. No divergence found."
         badText={`First divergence at step ${b.first_diverging_step ?? "?"}.`}
       />
       {!b.identical && (
@@ -262,7 +262,7 @@ function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
             <div>
               <div className="text-xs uppercase tracking-wide text-verdict-pass">Good</div>
               <div className="mt-1 font-mono text-xs text-muted-foreground">
-                {truncateId(b.good_run_id, 12)} · {b.good_step_key ?? "—"}
+                {truncateId(b.good_run_id, 12)} · {b.good_step_key ?? "-"}
               </div>
               <pre className="mt-1 overflow-x-auto rounded bg-white/[0.03] p-2 font-mono text-[11px] text-foreground/80">
                 {JSON.stringify(b.good_output, null, 2)}
@@ -271,7 +271,7 @@ function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
             <div>
               <div className="text-xs uppercase tracking-wide text-verdict-fail">Bad</div>
               <div className="mt-1 font-mono text-xs text-muted-foreground">
-                {truncateId(b.bad_run_id, 12)} · {b.bad_step_key ?? "—"}
+                {truncateId(b.bad_run_id, 12)} · {b.bad_step_key ?? "-"}
               </div>
               <pre className="mt-1 overflow-x-auto rounded bg-white/[0.03] p-2 font-mono text-[11px] text-foreground/80">
                 {JSON.stringify(b.bad_output, null, 2)}
