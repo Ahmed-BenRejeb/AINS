@@ -61,11 +61,10 @@ function VerdictHero({ verdict }: { verdict: VerdictLabel }) {
       : { x: 0 };
   return (
     <motion.div
-      initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1, ...shake }}
+      initial={{ scale: 0.92 }}
+      animate={{ scale: 1, ...shake }}
       transition={{
         scale: { type: "spring", stiffness: 320, damping: 18 },
-        opacity: { duration: 0.25 },
         x: { duration: 0.5, ease: "easeInOut" },
       }}
       className={cn(

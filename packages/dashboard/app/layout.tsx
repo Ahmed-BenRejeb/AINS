@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import "@fontsource-variable/bricolage-grotesque/wght.css";
 import "./globals.css";
 import { SiteHeader } from "@/components/sentinel/SiteHeader";
 
