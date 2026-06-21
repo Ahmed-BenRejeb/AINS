@@ -71,3 +71,7 @@ scripts/output/
 *.key
 *.cert
 secrets/
+
+# ── Claude Code local tooling (not project code) ─────────────────────────────
+.agents/
+skills-lock.json

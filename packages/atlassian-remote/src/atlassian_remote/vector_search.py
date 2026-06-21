@@ -31,7 +31,7 @@ from trace_core import (
     SearchResult,
 )
 
-from . import cf_ai_client
+from . import cf_ai_client, langfuse_client
 from .config import xqdrant_url
 
 _TEXT_KEYS = ("text", "description", "summary", "body")
@@ -94,6 +94,9 @@ async def search_similar(
         Hits with ``score > VECTOR_SIMILARITY_THRESHOLD``, each carrying an
         :class:`~trace_core.Attribution`, ordered by descending score.
     """
+    span = langfuse_client.start_span(
+        name="xqdrant-search", input={"query": query_text, "collection": collection}
+    )
     embedding = await cf_ai_embed_query(query_text)
     response = get_client().query_points(
         collection_name=collection,
@@ -115,6 +118,13 @@ async def search_similar(
                 attribution=_build_attribution(payload, _margin(points, index)),
             )
         )
+    langfuse_client.end_observation(
+        span,
+        output={
+            "count": len(results),
+            "top_score": results[0].score if results else None,
+        },
+    )
     return results
 
 

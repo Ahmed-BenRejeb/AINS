@@ -15,7 +15,8 @@ from __future__ import annotations
 
 from trace_core import CONFIDENCE_THRESHOLD, RcaDraft, SearchResult
 
-from . import cf_ai_client
+from . import cf_ai_client, langfuse_client
+from .config import model_main
 
 _MAX_EVIDENCE_CHARS = 500
 """Per-item cap on retrieved text in the prompt — bounds CF Workers AI neuron use
@@ -128,7 +129,11 @@ async def generate_rca(
         {"role": "system", "content": RCA_SYSTEM_PROMPT},
         {"role": "user", "content": build_rca_prompt(incident_text, similar, runbooks)},
     ]
+    generation = langfuse_client.start_generation(
+        name="rca-generation", model=model_main(), input=messages
+    )
     raw = await cf_ai_client.cf_ai_chat(messages)
+    langfuse_client.end_observation(generation, output=raw)
     return RcaDraft.model_validate_json(_extract_json(raw))
 
 

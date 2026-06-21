@@ -14,8 +14,8 @@ from statistics import mean
 from pydantic import BaseModel, Field
 from trace_core import DimensionScore, VerdictLabel
 
-from .. import cf_ai_client
-from ..config import JUDGE_PASS_THRESHOLD
+from .. import cf_ai_client, langfuse_client
+from ..config import JUDGE_PASS_THRESHOLD, model_main
 from ..models import JudgeVerdict
 
 _SYSTEM_PROMPT = (
@@ -82,7 +82,12 @@ async def judge(transcript: str, rubric: str = DEFAULT_RUBRIC) -> JudgeVerdict:
     Returns:
         A :class:`JudgeVerdict` with a verdict derived from the mean dimension score.
     """
-    raw = await cf_ai_client.cf_ai_chat(_build_messages(transcript, rubric))
+    messages = _build_messages(transcript, rubric)
+    generation = langfuse_client.start_generation(
+        name="llm-judge", model=model_main(), input=messages
+    )
+    raw = await cf_ai_client.cf_ai_chat(messages)
+    langfuse_client.end_observation(generation, output=raw)
     parsed = _JudgeRawOutput.model_validate_json(_extract_json(raw))
     return JudgeVerdict(
         verdict=_derive_verdict(parsed.dimensions),

@@ -23,6 +23,7 @@ dependencies = [
     "qdrant-client>=1.9",    # xqdrant similarity search (localhost:6333, internal only)
     "fastapi>=0.110",        # the /analyze /search /embed API on port 8080
     "uvicorn>=0.29",         # ASGI server for api.py
+    "langfuse>=4.9.1",
 ]
 
 # Standard src-layout: importable package at src/atlassian_remote/, imported as

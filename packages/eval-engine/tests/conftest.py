@@ -12,9 +12,16 @@ import json
 from pathlib import Path
 
 import pytest
+from eval_engine import langfuse_client
 from trace_core import TraceRecord
 
 _FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def disable_langfuse(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable Langfuse in tests so instrumentation no-ops (no client, no network)."""
+    monkeypatch.setattr(langfuse_client, "get_langfuse", lambda: None)
 
 
 def load_fixture(name: str) -> list[TraceRecord]:

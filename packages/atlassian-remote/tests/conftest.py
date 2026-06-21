@@ -9,6 +9,13 @@ the ``config`` getters never ``KeyError`` when a code path reaches them.
 from __future__ import annotations
 
 import pytest
+from atlassian_remote import langfuse_client
+
+
+@pytest.fixture(autouse=True)
+def disable_langfuse(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable Langfuse in tests so instrumentation no-ops (no client, no network)."""
+    monkeypatch.setattr(langfuse_client, "get_langfuse", lambda: None)
 
 
 @pytest.fixture(autouse=True)

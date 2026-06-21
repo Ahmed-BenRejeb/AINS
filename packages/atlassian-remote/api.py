@@ -18,6 +18,7 @@ import logging
 
 from atlassian_remote import analyzer, cf_ai_client, vector_search
 from atlassian_remote.config import forge_remote_secret
+from atlassian_remote.langfuse_client import init_langfuse
 from atlassian_remote.models import AnalyzeResult
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -26,6 +27,9 @@ from trace_core import MAX_RETRIEVAL_RESULTS, SearchResult
 logger = logging.getLogger("atlassian_remote.api")
 
 app = FastAPI(title="Sentinel Atlassian Remote", version="0.1.0")
+
+# Initialise Langfuse observability at startup (no-op if LANGFUSE_* is unset).
+init_langfuse()
 
 
 async def verify_request(request: Request) -> str:
