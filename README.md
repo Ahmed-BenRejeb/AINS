@@ -16,7 +16,7 @@ Sentinel is a unified reliability platform that continuously evaluates, records,
 
 The three layers share a single [OpenTelemetry GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) trace spine. UC2 captures, UC1 judges, UC3 produces the agent runs being captured and judged — and verdicts are filed back as Jira issues.
 
-**Status:** the end-to-end loop is wired and **live-validated** on the Azure VM — `POST /analyze` records every LLM call into a MinIO cassette, the eval engine judges that cassette and files a Jira Incident on a flagged verdict, and the response carries the verdict + a replay link. Remaining: deploy the Forge app (UC3) and Phase 5 differentiators (drift detector, dashboard).
+**Status:** the end-to-end loop is wired and **live-validated** on the Azure VM — `POST /analyze` records every LLM call into a MinIO cassette, the eval engine judges that cassette and files a Jira Incident on a flagged verdict, and the response carries the verdict + a replay link. Remaining: deploy the Forge app (UC3) to Atlassian. Phase 5 differentiators are built — the dashboard is deployed and the UC1 drift detector (`POST /drift`) is in.
 
 ---
 
