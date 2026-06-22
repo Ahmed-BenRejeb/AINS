@@ -57,11 +57,18 @@ const FLIGHT_RECORDER_API =
 const EVAL_ENGINE_API = process.env.EVAL_ENGINE_INTERNAL_URL ?? EVAL_ENGINE_URL;
 
 const FETCH_TIMEOUT_MS = 5000;
+// Replay/bisect re-drive a whole cassette, so they can legitimately take longer
+// than a list/detail GET. Give those POSTs a wider budget before falling back.
+const REPLAY_TIMEOUT_MS = 30000;
 
 /** Fetch JSON with a hard timeout; throws on timeout or non-2xx response. */
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+async function fetchJson<T>(
+  url: string,
+  init?: RequestInit,
+  timeoutMs: number = FETCH_TIMEOUT_MS,
+): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       ...init,
@@ -222,10 +229,11 @@ export async function postReplay(
 ): Promise<Loaded<ReplayResult>> {
   if (useMock) return mock(mockReplay(runId));
   try {
-    const result = await fetchJson<ReplayResult>(`${FLIGHT_RECORDER_API}/replay`, {
-      method: "POST",
-      body: JSON.stringify({ run_id: runId }),
-    });
+    const result = await fetchJson<ReplayResult>(
+      `${FLIGHT_RECORDER_API}/replay`,
+      { method: "POST", body: JSON.stringify({ run_id: runId }) },
+      REPLAY_TIMEOUT_MS,
+    );
     return live(result);
   } catch (err) {
     return fallback(mockReplay(runId), err);
@@ -240,10 +248,11 @@ export async function postBisect(
 ): Promise<Loaded<BisectResult>> {
   if (useMock) return mock(mockBisect);
   try {
-    const result = await fetchJson<BisectResult>(`${FLIGHT_RECORDER_API}/bisect`, {
-      method: "POST",
-      body: JSON.stringify({ good_run_id: goodRunId, bad_run_id: badRunId }),
-    });
+    const result = await fetchJson<BisectResult>(
+      `${FLIGHT_RECORDER_API}/bisect`,
+      { method: "POST", body: JSON.stringify({ good_run_id: goodRunId, bad_run_id: badRunId }) },
+      REPLAY_TIMEOUT_MS,
+    );
     return live(result);
   } catch (err) {
     return fallback(mockBisect, err);

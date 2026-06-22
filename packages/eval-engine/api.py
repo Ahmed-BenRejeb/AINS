@@ -18,8 +18,9 @@ from eval_engine.drift.detector import detect_drift
 from eval_engine.langfuse_client import init_langfuse
 from eval_engine.metrics.pass_at_k import consistency_rate, pass_at_k
 from eval_engine.trace_loader import load_trace
+from eval_engine.verdict_store import get_verdict, list_verdicts
 from eval_engine.verdicts.reporter import evaluate_run
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from trace_core import PASS_AT_K_TRIALS, DriftReport, EvalVerdict, TraceRecord
@@ -102,6 +103,25 @@ async def _resolve_records(request: EvaluateRequest) -> list[TraceRecord]:
 def health() -> dict[str, str]:
     """Liveness probe."""
     return {"status": "ok"}
+
+
+@app.get("/verdicts")
+def get_verdicts(limit: int = 50) -> list[EvalVerdict]:
+    """List the most recent persisted verdicts (newest first) from D1.
+
+    Powers the dashboard overview + verdict list. Returns ``[]`` when D1 is
+    unconfigured or empty, so the UI degrades cleanly rather than erroring.
+    """
+    return list_verdicts(limit)
+
+
+@app.get("/verdicts/{run_id}")
+def get_verdict_by_run(run_id: str) -> EvalVerdict:
+    """Return the most recent persisted verdict for ``run_id`` (404 if none)."""
+    verdict = get_verdict(run_id)
+    if verdict is None:
+        raise HTTPException(status_code=404, detail=f"no verdict persisted for run {run_id}")
+    return verdict
 
 
 @app.post("/evaluate")

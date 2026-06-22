@@ -23,7 +23,7 @@ from functools import lru_cache
 from typing import Any
 
 import httpx
-from trace_core import EvalVerdict
+from trace_core import DimensionScore, EvalVerdict, FailureAttribution, SelfEvaluation
 
 logger = logging.getLogger("eval_engine.verdict_store")
 
@@ -99,3 +99,73 @@ def persist_verdict(verdict: EvalVerdict) -> bool:
         logger.warning("failed to persist eval_verdict for run %s: %s", verdict.run_id, exc)
         return False
     return True
+
+
+def _select(sql: str, params: list[Any]) -> list[dict[str, Any]]:
+    """Run a SELECT against D1 and return rows (empty if unconfigured/failed)."""
+    if not all(os.environ.get(key) for key in _REQUIRED_ENV):
+        return []
+    try:
+        with httpx.Client(timeout=_D1_TIMEOUT_SECONDS) as client:
+            response = client.post(
+                _query_url(),
+                headers={"Authorization": f"Bearer {os.environ['CLOUDFLARE_API_TOKEN']}"},
+                json={"sql": sql, "params": params},
+            )
+            response.raise_for_status()
+            body = response.json()
+    except Exception as exc:  # best-effort: a D1 read failure must not 500 the API
+        logger.warning("failed to read eval_verdicts: %s", exc)
+        return []
+    results = body.get("result", [])
+    rows: list[dict[str, Any]] = results[0].get("results", []) if results else []
+    return rows
+
+
+def _row_to_verdict(row: dict[str, Any]) -> EvalVerdict:
+    """Reconstruct an ``EvalVerdict`` from a persisted ``eval_verdicts`` row.
+
+    The normalized columns carry everything the dashboard renders; the failure
+    attribution's free-text description is recovered from ``recommended_action``
+    (which embeds it) since it is not stored as its own column.
+    """
+    dims_raw = json.loads(row.get("dimensions_json") or "{}")
+    dimensions = {name: DimensionScore(**data) for name, data in dims_raw.items()}
+    confidence = float(row.get("confidence") or 0.0)
+    attribution: FailureAttribution | None = None
+    if row.get("attribution_step") is not None:
+        attribution = FailureAttribution(
+            step=int(row["attribution_step"]),
+            component=row.get("attribution_component") or "unknown",
+            description=row.get("recommended_action") or "See the replay for details.",
+            confidence=confidence,
+        )
+    return EvalVerdict(
+        run_id=str(row["run_id"]),
+        trial_number=int(row.get("trial_number") or 0),
+        verdict=row["verdict"],
+        dimensions=dimensions,
+        failure_attribution=attribution,
+        self_evaluation=SelfEvaluation(
+            judge_confidence=confidence,
+            self_critique=row.get("self_critique") or "",
+            flag_for_human=bool(row.get("flag_for_human")),
+        ),
+        replay_link=row.get("replay_link") or "",
+        recommended_action=row.get("recommended_action") or "",
+    )
+
+
+def get_verdict(run_id: str) -> EvalVerdict | None:
+    """Return the most recent persisted verdict for ``run_id`` (None if absent)."""
+    rows = _select(
+        "SELECT * FROM eval_verdicts WHERE run_id = ? ORDER BY created_at DESC LIMIT 1",
+        [run_id],
+    )
+    return _row_to_verdict(rows[0]) if rows else None
+
+
+def list_verdicts(limit: int = 50) -> list[EvalVerdict]:
+    """Return the most recent persisted verdicts, newest first."""
+    rows = _select("SELECT * FROM eval_verdicts ORDER BY created_at DESC LIMIT ?", [limit])
+    return [_row_to_verdict(row) for row in rows]

@@ -154,12 +154,23 @@ only scans `.py` — does not require them.)
 
 ## Known Gotchas
 
-- **The eval engine has no `GET /verdicts` or `GET /verdicts/{id}` endpoint** (only
-  `/health` + `POST /evaluate`/`/evaluate/batch`). The UI optimistically tries those
-  GETs so it lights up automatically if they're ever added, but until then the
-  home "Recent verdicts" table and the verdict detail page run on **mock-fallback**
-  in live mode. This is expected — verdicts are produced inside the Phase-4 loop,
-  not served from a list endpoint yet.
+- **The eval engine now exposes `GET /verdicts` + `GET /verdicts/{run_id}`** (reading
+  the persisted D1 `eval_verdicts` rows). So the home "Recent verdicts" table and the
+  verdict detail page serve **LIVE** data once any verdict has been persisted (every
+  `/analyze`→`/evaluate` writes one). They still fall back to mock cleanly when D1 is
+  empty/unconfigured.
+- **Use `127.0.0.1`, not `localhost`, for the internal service URLs.** Node resolves
+  `localhost` to IPv6 `::1` first; the IPv4-bound uvicorn services don't answer it, so
+  server-side `/replay`, `/bisect`, and `/verdicts` fetches **hang to the abort timeout
+  and silently fall back to mock** (symptom: replay/verdict "not working", `mock-fallback`
+  with `error: "This operation was aborted"`). The `sentinel-dashboard` unit + `setup.sh`
+  set `FLIGHT_RECORDER_INTERNAL_URL`/`EVAL_ENGINE_INTERNAL_URL` to `http://127.0.0.1:*`.
+  Replay/bisect also get a wider 30s fetch budget (they re-drive a whole cassette).
+- **Trace steps are operation-aware.** `StepTimeline` reads `metadata_json.operation`
+  (`embedding` | `chat`, set by the flight recorder) to label each step and shows the
+  short model id; the input/output previews are human-readable summaries (e.g.
+  "embed 1 text(s): ..." / "768-dim vectors", or the chat prompt/response), not raw
+  request/response JSON. Older runs without `operation` fall back to the `kind` badge.
 - **`GET /runs/{id}` trace rows don't carry latency.** The `trace_records` D1 row
   has `input_preview`/`output_preview` but `metadata_json` only stores the hmac
   algorithm — so `StepTimeline` shows `latency_ms` only when present (mock data has
