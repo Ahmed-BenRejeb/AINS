@@ -185,6 +185,24 @@ export interface DriftReport {
   summary: string;
 }
 
+/** mirrors schema.py: EvaluatorQuality */
+export interface EvaluatorQuality {
+  /** Number of gold-labelled cases scored. */
+  n_cases: number;
+  /** Cases where the evaluator's verdict matched the human label. */
+  n_agreements: number;
+  /** Raw agreement: n_agreements / n_cases (0.0 when empty). */
+  accuracy: number;
+  /** Chance-corrected agreement (Cohen's κ): 1 perfect, 0 chance, <0 worse. */
+  cohen_kappa: number;
+  /** Per gold-label fraction the evaluator matched (sensitivity), keyed by label. */
+  per_label_recall: Record<string, number>;
+  /** Qualitative κ band (Landis & Koch): e.g. "substantial", "moderate". */
+  agreement_band: string;
+  /** Human-readable one-line assessment of evaluator quality. */
+  summary: string;
+}
+
 // ─── Retrieval & explainability (xqdrant) ──────────────────────────────────────
 
 /** mirrors schema.py: Attribution */

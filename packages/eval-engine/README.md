@@ -15,6 +15,7 @@ Consumes OTel GenAI traces from the flight recorder and produces structured, aud
 - The verdict reporter (assembles the `EvalVerdict`; files an AO Jira Incident on failure)
 - The FastAPI server (entry point called by the dashboard and by UC3's evaluator step)
 - The drift detector (`drift/` — pass-rate / per-dimension / semantic output-embedding shift across run windows → `DriftReport`; `POST /drift`)
+- The evaluator-quality metric (`metrics/evaluator_quality.py` — judge-vs-human Cohen's κ over a human-labelled gold set → `EvaluatorQuality`; `POST /evaluator-quality`; UC1 §2.4 "evaluation of the evaluator")
 
 ## What Does NOT Go Here
 
@@ -57,7 +58,8 @@ eval-engine/
 │   ├── attribution/
 │   │   └── dag_attributor.py    retrieval→planning→execution failure attribution
 │   ├── metrics/
-│   │   └── pass_at_k.py         pass^k metric (k=8) + consistency_rate
+│   │   ├── pass_at_k.py         pass^k metric (k=8) + consistency_rate
+│   │   └── evaluator_quality.py judge-vs-human Cohen's κ → EvaluatorQuality (UC1 §2.4)
 │   ├── drift/
 │   │   ├── embedder.py          BGE output-centroid embedding + cosine_distance (via cf_ai_embed)
 │   │   └── detector.py          detect_drift(baseline, current) → DriftReport (UC1 §2.3)
@@ -74,7 +76,7 @@ eval-engine/
 ```bash
 make test-uc1                                   # pytest + coverage (from repo root)
 cd packages/eval-engine
-uv run uvicorn api:app --reload --port 8000     # serve /evaluate, /evaluate/batch, /drift, /health
+uv run uvicorn api:app --reload --port 8000     # /evaluate[/batch], /drift, /evaluator-quality, /verdicts, /health
 ```
 
 ```python

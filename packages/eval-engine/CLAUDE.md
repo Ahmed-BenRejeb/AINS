@@ -18,7 +18,7 @@ and produces `EvalVerdict` objects with failure attribution, `pass^k` scores, an
 
 ```
 eval-engine/
-├── api.py                       FastAPI server (port 8000): /evaluate /evaluate/batch /drift /health
+├── api.py                       FastAPI server (8000): /evaluate /evaluate/batch /drift /evaluator-quality /health
 ├── pyproject.toml               hatchling package; deps: trace-core, httpx, fastapi
 ├── src/eval_engine/
 │   ├── cf_ai_client.py          async CF Workers AI: cf_ai_chat / cf_ai_embed / cf_ai_safety (429/5xx retry+backoff in _post)
@@ -35,7 +35,8 @@ eval-engine/
 │   ├── attribution/
 │   │   └── dag_attributor.py    VeriLA-style retrieval→planning→execution failure attribution
 │   ├── metrics/
-│   │   └── pass_at_k.py         pass^k metric (k=8, τ-bench standard) + consistency_rate
+│   │   ├── pass_at_k.py         pass^k metric (k=8, τ-bench standard) + consistency_rate
+│   │   └── evaluator_quality.py eval-of-evaluator: cohen_kappa + score_evaluator → EvaluatorQuality (UC1 §2.4)
 │   ├── drift/
 │   │   ├── embedder.py          BGE output-centroid embedding + cosine_distance (via cf_ai_embed)
 │   │   └── detector.py          detect_drift(baseline, current) → DriftReport (UC1 §2.3)
@@ -149,7 +150,7 @@ verdict = await evaluate_run(run_id, trial_number=0, records=records)
 ## Status (20 Jun 2026)
 
 Core pipeline built, green, and **live-validated** by the Phase 4 loop: `make
-test-uc1` passes (45 tests); ruff/black/isort/mypy --strict clean. `trace_loader`
+test-uc1` passes (59 tests); ruff/black/isort/mypy --strict clean. `trace_loader`
 now loads the **full MinIO cassette** via `cassette_store` (D1 row previews are the
 fallback only). Jira filing in `reporter._file_issue` is **best-effort** (a Jira
 outage/rejection no longer fails `/evaluate`). Each verdict is also **persisted to
@@ -163,3 +164,11 @@ AI's JSON-mode dict response to a string so the judge can `model_validate_json` 
 `POST /drift`): `detect_drift` compares a baseline vs current window of `EvalVerdict`s
 on pass-rate, per-dimension scores, and (optionally) semantic output-embedding drift,
 returning a `trace_core.DriftReport`. Thresholds live in `config.py` (`DRIFT_*`).
+
+**Evaluation-of-the-evaluator (UC1 §2.4) is now built** (`metrics/evaluator_quality.py`,
+`reporter.evaluate_gold_set`, `POST /evaluator-quality`): runs the evaluator over a
+human-labelled gold set (`GoldCase` = run + records + expected verdict) and reports
+judge-vs-human agreement as accuracy **and Cohen's κ** (chance-corrected, so a constant
+"pass" judge on a passing-heavy set scores ~0), plus per-label recall and a Landis & Koch
+band, as a `trace_core.EvaluatorQuality`. `cohen_kappa`/`score_evaluator` are pure (like
+`pass_at_k`); the orchestration lives in the reporter.
