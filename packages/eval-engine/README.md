@@ -14,7 +14,7 @@ Consumes OTel GenAI traces from the flight recorder and produces structured, aud
 - The `pass^k` metric calculator (reliability metric from τ-bench; `all()` not `any()`)
 - The verdict reporter (assembles the `EvalVerdict`; files an AO Jira Incident on failure)
 - The FastAPI server (entry point called by the dashboard and by UC3's evaluator step)
-- _(planned)_ The drift detector (distributional shift detection across runs over time)
+- The drift detector (`drift/` — pass-rate / per-dimension / semantic output-embedding shift across run windows → `DriftReport`; `POST /drift`)
 
 ## What Does NOT Go Here
 
@@ -58,20 +58,23 @@ eval-engine/
 │   │   └── dag_attributor.py    retrieval→planning→execution failure attribution
 │   ├── metrics/
 │   │   └── pass_at_k.py         pass^k metric (k=8) + consistency_rate
+│   ├── drift/
+│   │   ├── embedder.py          BGE output-centroid embedding + cosine_distance (via cf_ai_embed)
+│   │   └── detector.py          detect_drift(baseline, current) → DriftReport (UC1 §2.3)
 │   └── verdicts/
 │       ├── reporter.py          assemble EvalVerdict; file Jira issue on failure
 │       └── atlassian_client.py  Jira create-issue (AO, type id 10013, no priority/labels)
-└── tests/                       code_grader / llm_judge / pass_at_k / reporter + fixtures
+└── tests/                       code_grader / llm_judge / pass_at_k / reporter / drift + fixtures
 ```
 
-> `drift/` (detector + embedder → Cloudflare Vectorize) is a planned extension, not yet built.
+> `drift/` (detector + embedder) is **built** (UC1 §2.3): `detect_drift` compares a baseline vs current window of `EvalVerdict`s on pass-rate, per-dimension scores, and — when output text is supplied — semantic drift (cosine distance of BGE output-centroid embeddings via `cf_ai_embed`). Thresholds live in `config.py` (`DRIFT_*`); a crossing sets `DriftReport.drift_detected`.
 
 ## Setup and Run
 
 ```bash
 make test-uc1                                   # pytest + coverage (from repo root)
 cd packages/eval-engine
-uv run uvicorn api:app --reload --port 8000     # serve /evaluate, /evaluate/batch, /health
+uv run uvicorn api:app --reload --port 8000     # serve /evaluate, /evaluate/batch, /drift, /health
 ```
 
 ```python
