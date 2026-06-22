@@ -54,7 +54,7 @@ Everything below is live and running. Use these exact values — do not invent n
 |---|---|
 | D1 database | `sentinel-traces` (ID in `/srv/sentinel/.env`) |
 | Vectorize index | `sentinel-embeddings` (768-dim, cosine) |
-| Workers AI | `@cf/google/gemma-4-26b-a4b-it` (main LLM — RCA + judge; ~7x cheaper/neuron than llama-3.3-70b) |
+| Workers AI | `@cf/meta/llama-3.1-8b-instruct-fp8-fast` (main LLM — RCA + judge; ~6x cheaper/neuron than llama-3.3-70b, clean JSON) |
 | Workers AI | `@cf/meta/llama-guard-3-8b` (safety filter) |
 | Workers AI | `@cf/baai/bge-base-en-v1.5` (embeddings) |
 
@@ -162,7 +162,7 @@ CLOUDFLARE_API_TOKEN=<in /srv/sentinel/.env>
 CF_AI_ACCOUNT_ID=
 CF_AI_API_TOKEN=
 
-CF_AI_MODEL_MAIN=@cf/google/gemma-4-26b-a4b-it
+CF_AI_MODEL_MAIN=@cf/meta/llama-3.1-8b-instruct-fp8-fast
 CF_AI_MODEL_SAFETY=@cf/meta/llama-guard-3-8b
 CF_AI_MODEL_EMBED=@cf/baai/bge-base-en-v1.5
 
@@ -246,7 +246,7 @@ All LLM calls go through:
 
 | Use | Model | Notes |
 |---|---|---|
-| Main LLM (RCA, eval judge) | `@cf/google/gemma-4-26b-a4b-it` | 9,091/27,273 neurons per M in/out — ~7x cheaper than llama-3.3-70b (was the default); stretches the free 10k/day |
+| Main LLM (RCA, eval judge) | `@cf/meta/llama-3.1-8b-instruct-fp8-fast` | 4,119/34,868 neurons per M in/out — ~6x cheaper than llama-3.3-70b (was the default), clean JSON, fast for Forge 25s; stretches the free 10k/day |
 | Safety pre-filter | `@cf/meta/llama-guard-3-8b` | Fast, cheap |
 | Embeddings (768-dim) | `@cf/baai/bge-base-en-v1.5` | For xqdrant + drift |
 
@@ -418,6 +418,8 @@ chore(infra): update wrangler.toml with D1 database ID
 | CF daily neuron allocation 429 (`code 4006`) | CF returns `429` `code 4006` ("daily free allocation of 10,000 neurons") for **every** active model — **even when the dashboard shows `0/10k`**. Verified the token is valid + sees only the correct account, and a deprecated model gives a *different* 410 (so requests reach the AI layer — not auth). Token lacks analytics-read scope, so CF's authoritative usage can't be queried to reconcile. Leading theory: **rolling ~24h enforcement** vs a **calendar-day display** panel (yesterday's E2E ran ~14:00 UTC → clears ~14:00 UTC next day). The plain 30s×3 retry burned 90s then surfaced as a bare **500**, hanging past Forge's 25s. | `cf_ai_client._post` **fails fast** on a 4006/"neurons" 429 (no backoff) in **both** packages; `api.py` (eval-engine + atlassian-remote) maps any upstream `httpx.HTTPStatusError` to a clean **503**. Verified live: `/search`→503 in 0.11s, `/analyze`→503 in 5s. Re-test after ~14:00 UTC or demo from cassettes via deterministic `/replay` (0 live calls) |
 | Runbooks always returned 0 hits | `VECTOR_SIMILARITY_THRESHOLD` (0.75) was imported from `trace_core`, so the `.env` knob was **ignored**; incident→runbook cosine tops ~0.71 (generic templated runbooks) < 0.75 → every runbook filtered out (incident→incident is 0.76–0.79, so incidents passed) | Per-collection floors in `atlassian_remote.config`: incidents use `VECTOR_SIMILARITY_THRESHOLD` (env-overridable, 0.75); runbooks use `RUNBOOK_SIMILARITY_THRESHOLD` (env-overridable, **0.60**). `search_similar(..., threshold=None)` resolves by collection. Re-seed richer runbook content to lift scores |
 | UC1 | Drift detection combines verdict/score deltas **and** semantic output-embedding drift (not just pass-rate) | Brief Scenario B: a model update can shift output *characteristics* with no pass/fail change; the BGE embedding-centroid distance catches what verdict drift alone misses |
+| CF model response shapes differ across models | `result.response` (older, e.g. llama-3.3-70b) vs OpenAI-style `result.choices[].message.content` (newer) vs `message.reasoning` with `content: null` (reasoning models, e.g. **gemma-4-26b-a4b** — a poor fit for fast structured JSON; **gemma-3-12b is 410 Gone**) | `cf_ai_client._response_text` (both packages) reads `response`, then falls back to `choices[0].message.content`, then `.reasoning`. Main model is **`@cf/meta/llama-3.1-8b-instruct-fp8-fast`** — clean JSON `content`, ~6x cheaper out than 70B, fast for Forge's 25s |
+| Workers AI on a separate CF account | `CF_AI_ACCOUNT_ID`/`CF_AI_API_TOKEN` route **only** the AI calls to another account (e.g. a teammate's) for a fresh 10k-neuron/day budget; D1 stays on `CLOUDFLARE_*` | `cf_account_id()`/`cf_api_token()` prefer `CF_AI_*`, fall back to `CLOUDFLARE_*`. Verified live: `/analyze` generated on the teammate account while the primary was at 0, and D1 writes still landed on the primary |
 
 ---
 
