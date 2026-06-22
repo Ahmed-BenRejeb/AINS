@@ -28,6 +28,7 @@ from ..graders.llm_judge import DEFAULT_RUBRIC, calibrated_judge
 from ..graders.safety_filter import check_safety
 from ..models import CodeGraderResult, JudgeVerdict
 from ..transcript import build_transcript
+from ..verdict_store import persist_verdict
 from . import atlassian_client
 
 logger = logging.getLogger("eval_engine.verdicts.reporter")
@@ -129,6 +130,10 @@ async def evaluate_run(
         replay_link=replay_link(run_id),
         recommended_action=_recommended_action(verdict, attribution),
     )
+
+    # Persist the verdict to D1 (best-effort): the durable record the dashboard
+    # verdict screens read. A D1 failure must never fail evaluation.
+    persist_verdict(eval_verdict)
 
     if file_issue and (verdict == "fail" or flag_for_human):
         await _file_issue(eval_verdict)
