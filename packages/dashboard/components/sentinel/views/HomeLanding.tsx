@@ -162,10 +162,10 @@ export function HomeLanding({
                     <div className="flex-1 space-y-3">
                       <Readout label="Runs" value={stats.total_runs} />
                       <Readout
-                        label="pass^k"
-                        value={stats.pass_hat_k}
-                        decimals={2}
-                        accent={stats.pass_hat_k >= 1 ? "text-verdict-pass" : "text-verdict-fail"}
+                        label="pass^k %"
+                        value={Math.round(stats.pass_hat_k * 100)}
+                        suffix="%"
+                        accent={stats.pass_hat_k >= 0.5 ? "text-verdict-pass" : "text-verdict-uncertain"}
                       />
                       <Readout
                         label="Flagged"
@@ -205,7 +205,7 @@ export function HomeLanding({
         <div className="mx-auto grid w-full max-w-[1180px] grid-cols-2 divide-hairline px-5 md:grid-cols-4 md:divide-x md:px-8">
           <BandStat label="Runs recorded" value={stats.total_runs} />
           <BandStat label="Pass rate" value={Math.round(stats.pass_rate * 100)} suffix="%" accent />
-          <BandStat label="pass^k · last 8" value={stats.pass_hat_k} decimals={2} />
+          <BandStat label="pass^k (all trials)" value={Math.round(stats.pass_hat_k * 100)} suffix="%" />
           <BandStat label="Flagged for human" value={stats.flagged_for_human} />
         </div>
       </section>
@@ -341,11 +341,13 @@ function Readout({
   label,
   value,
   decimals = 0,
+  suffix = "",
   accent,
 }: {
   label: string;
   value: number;
   decimals?: number;
+  suffix?: string;
   accent?: string;
 }) {
   return (
@@ -354,7 +356,7 @@ function Readout({
         {label}
       </span>
       <span className={cn("font-mono text-base font-semibold tabular-nums text-foreground", accent)}>
-        <AnimatedCounter value={value} decimals={decimals} />
+        <AnimatedCounter value={value} decimals={decimals} suffix={suffix} />
       </span>
     </div>
   );

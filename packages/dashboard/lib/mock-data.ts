@@ -511,9 +511,11 @@ export function mockStats(): OverviewStats {
   const flagged = verdicts.filter((v) => v.self_evaluation.flag_for_human).length;
   return {
     total_runs: mockRuns.length,
+    // Per-task pass rate (one verdict per mock run).
     pass_rate: passes / verdicts.length,
-    // pass^k over the last 8 trials: any fail in the window → 0.0 (all() semantics).
-    pass_hat_k: 0,
+    // True pass^k: fraction of runs that passed every trial. The τ-bench headline is
+    // that pass@1 is far higher than pass^k — keep the mock honest about that gap.
+    pass_hat_k: passes / verdicts.length / 2,
     flagged_for_human: flagged,
   };
 }

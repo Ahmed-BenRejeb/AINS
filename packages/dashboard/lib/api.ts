@@ -162,10 +162,13 @@ export async function getVerdict(
 /** Fetch the compact verdict summaries used on the home page (`GET /verdicts`). */
 export async function getVerdictSummaries(
   useMock: boolean,
+  limit: number = 50,
 ): Promise<Loaded<VerdictSummary[]>> {
   if (useMock) return mock(mockVerdictSummaries());
   try {
-    const verdicts = await fetchJson<EvalVerdict[]>(`${EVAL_ENGINE_API}/verdicts`);
+    const verdicts = await fetchJson<EvalVerdict[]>(
+      `${EVAL_ENGINE_API}/verdicts?limit=${limit}`,
+    );
     const summaries: VerdictSummary[] = verdicts.map((v) => ({
       run_id: v.run_id,
       verdict: coerceVerdict(v.verdict),
@@ -197,7 +200,7 @@ export async function getOverview(useMock: boolean): Promise<Loaded<Overview>> {
 
   const [runs, verdicts] = await Promise.all([
     getRuns(false),
-    getVerdictSummaries(false),
+    getVerdictSummaries(false, 200),
   ]);
 
   // If neither live source came back, present a clean mock-fallback bundle.
@@ -208,18 +211,38 @@ export async function getOverview(useMock: boolean): Promise<Loaded<Overview>> {
     );
   }
 
-  const summaries = verdicts.data;
-  const window = summaries.slice(0, 8);
-  const passes = window.filter((v) => v.verdict === "pass").length;
+  // Group verdicts by run_id (a run can have many trials, e.g. a pass^k sweep) so
+  // metrics are per-task, not per-row — otherwise a few k=8 sweeps dominate and the
+  // pass rate reads like a coin flip. Summaries arrive newest-first.
+  const byRun = new Map<string, VerdictSummary[]>();
+  for (const v of verdicts.data) {
+    const trials = byRun.get(v.run_id) ?? [];
+    trials.push(v);
+    byRun.set(v.run_id, trials);
+  }
+  const runIds = [...byRun.keys()];
+  const evaluated = runIds.length;
+  let latestPass = 0; // runs whose most-recent verdict is pass
+  let allTrialsPass = 0; // runs where EVERY recorded trial passed (true pass^k)
+  let flaggedRuns = 0;
+  for (const id of runIds) {
+    const trials = byRun.get(id) ?? [];
+    if (trials[0]?.verdict === "pass") latestPass += 1;
+    if (trials.length > 0 && trials.every((t) => t.verdict === "pass")) allTrialsPass += 1;
+    if (trials.some((t) => t.flag_for_human)) flaggedRuns += 1;
+  }
   const stats: OverviewStats = {
-    total_runs: runs.data.length || summaries.length,
-    pass_rate: window.length ? passes / window.length : 0,
-    // pass^k = 1.0 only if every trial in the window passed (all() semantics).
-    pass_hat_k: window.length > 0 && passes === window.length ? 1 : 0,
-    flagged_for_human: summaries.filter((v) => v.flag_for_human).length,
+    total_runs: runs.data.length || evaluated,
+    // Per-task pass rate: fraction of evaluated runs whose latest verdict is pass.
+    pass_rate: evaluated ? latestPass / evaluated : 0,
+    // True pass^k: fraction of runs where ALL recorded trials passed (all() semantics).
+    pass_hat_k: evaluated ? allTrialsPass / evaluated : 0,
+    flagged_for_human: flaggedRuns,
   };
+  // Recent-verdicts table: the latest verdict per run (deduped), newest first.
+  const recent = runIds.map((id) => (byRun.get(id) ?? [])[0]).filter(Boolean) as VerdictSummary[];
   const source = runs.source === "live" && verdicts.source === "live" ? "live" : "mock-fallback";
-  return { data: { stats, summaries }, source, error: verdicts.error ?? runs.error };
+  return { data: { stats, summaries: recent }, source, error: verdicts.error ?? runs.error };
 }
 
 // ─── Replay / bisect (POST) ────────────────────────────────────────────────────
