@@ -15,20 +15,25 @@ from .drift.detector import detect_drift
 from .graders import code_grader
 from .graders.llm_judge import calibrated_judge, judge
 from .graders.safety_filter import check_safety
+from .metrics.evaluator_quality import cohen_kappa, score_evaluator
 from .metrics.pass_at_k import consistency_rate, pass_at_k
-from .models import CodeGraderResult, JudgeVerdict, SafetyResult
-from .verdicts.reporter import evaluate_run
+from .models import CodeGraderResult, GoldCase, JudgeVerdict, SafetyResult
+from .verdicts.reporter import evaluate_gold_set, evaluate_run
 
 __all__ = [
     "CodeGraderResult",
+    "GoldCase",
     "JudgeVerdict",
     "SafetyResult",
     "calibrated_judge",
     "check_safety",
     "code_grader",
+    "cohen_kappa",
     "consistency_rate",
     "detect_drift",
+    "evaluate_gold_set",
     "evaluate_run",
     "judge",
     "pass_at_k",
+    "score_evaluator",
 ]
