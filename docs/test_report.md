@@ -14,15 +14,20 @@
 > to the D1 `eval_verdicts` table (the table existed but nothing wrote to it) — now
 > persisted best-effort, with a row verified live.
 >
-> **Operational caveat (important for the demo):** the free CF budget is genuinely
-> ~10k neurons/day and is **easily consumed by a full test pass**. The live E2E (7
-> `/analyze`, each spending the 70B model on RCA **plus** a calibrated judge ×2) plus
-> a partial `pass^k` sweep **re-exhausted the entire daily allocation by ~15:44 UTC**
-> — the `make eval` k=8 sweep therefore 503'd partway and scored 0 tasks (an
-> environmental limit, not a logic failure). The substantive eval evidence is the
-> **6 real single-trial verdicts** captured live before exhaustion (4 pass, 1 fail,
-> 1 uncertain). A full `pass^k` sweep needs the Workers **Paid** plan or a clean
-> day's budget reserved for it.
+> **Update (~17:30 UTC) — model finalized + first real pass^k.** The free CF budget
+> is genuinely ~10k neurons/day and is easily consumed by one full test pass, so two
+> changes were made to keep testing today: (1) the main RCA + judge model was moved
+> off Llama 3.3 70B — first to Gemma, but **Gemma proved unfit** (`gemma-3-12b` is
+> `410 Gone`; the only available Gemma, `gemma-4-26b-a4b`, is a reasoning model that
+> returns `content: null` with the answer in `message.reasoning`) — and finalized to
+> **`@cf/meta/llama-3.1-8b-instruct-fp8-fast`** (~6× cheaper output, clean JSON, fast
+> for Forge's 25s); the response parser was hardened to handle all three CF response
+> shapes. (2) Workers AI was routed to a **teammate's CF account** via a new
+> `CF_AI_ACCOUNT_ID`/`CF_AI_API_TOKEN` split (D1 stays on the primary account). On
+> that budget the **full 5-incident E2E re-ran green** and a **real `pass^k` sweep
+> completed for the first time**: **pass@1 100% / pass^8 33.3%** (see below) — the
+> headline τ-bench reliability result. The earlier-in-the-day run (Llama 3.3 70B,
+> primary account) is preserved below for the record; numbers there reflect that run.
 
 ---
 
@@ -230,34 +235,42 @@ incident retrieved runbooks** (Issue 2 fixed in the real flow).
 
 ## pass^k Results (from `make eval`)
 
-`make eval` (which runs `scripts/run_synthetic_eval.py --k 8`) executes cleanly —
-the two non-CF script bugs fixed in the prior session (the `["runs"]` access on a
-bare-array response, and the hard `dotenv` import) stay fixed. This session ran an
-8-run × k=8 sweep:
+> **Update — this is now a REAL result.** After switching the main model to
+> `llama-3.1-8b-fp8-fast` and routing Workers AI to a teammate's CF account (the
+> `CF_AI_*` split), the `pass^k` sweep actually completed for the first time.
+
+`make eval` runs `scripts/run_synthetic_eval.py --k 8` (the two non-CF script bugs
+fixed earlier — the `["runs"]` access on a bare-array response and the hard
+`dotenv` import — stay fixed). This run used `--limit 4` to stay inside the
+teammate budget; 3 of the 4 runs scored fully (k=8 trials each) before the 4th hit
+a 503 as the budget ran low:
 
 ```
 === Sentinel Eval Suite (k=8) ===
-Found 8 recorded runs to evaluate.
-[1/8] 951ca295... ERROR: 503 ... /evaluate
-...
-[8/8] e93bb01a... ERROR: 503 ... /evaluate
-=== Summary ===  pass@1: 0.0%   pass^8: 0.0%   consistency: 0.0%
-✓ Report written to docs/eval_report.md
+[1/4] 12a8129d... ✓ pass^8=True  consistency=100%
+[2/4] e6bdbaf4... ✗ pass^8=False consistency=50%
+[3/4] 09168e1a... ✗ pass^8=False consistency=62%
+[4/4] e6a6c3ff... ERROR: 503 (teammate budget ran low)
+=== Summary ===  pass@1: 100.0%   pass^8: 33.3%   consistency: 70.8%
 ```
 
-The first trials of run 1 succeeded (200 OK in the eval-engine log), then **the CF
-daily budget ran out mid-sweep** (the E2E had already spent most of it) and every
-subsequent `/evaluate` returned **503** → 0 tasks fully scored. This is the same
-environmental limit, not a logic failure: the pipeline fails fast and the sweep
-finished in seconds. `docs/eval_report.md` was left as the committed template rather
-than overwriting it with a 0-task report.
+| Metric | Value |
+|---|---|
+| **pass@1** (≥1 of k trials passed) | **100.0%** |
+| **pass^8** (ALL 8 trials passed) | **33.3%** (1 of 3 fully-scored tasks) |
+| Consistency rate (avg passing trials) | 70.8% |
+| Tasks fully scored / trials | 3 / 24 |
 
-**The real eval evidence is the live single-trial verdicts** captured during the
-E2E before exhaustion — 6 runs (AO-11/21/51/71/91 + AO-31): **4 pass, 1 fail, 1
-uncertain** → single-trial pass rate **4/6 ≈ 67%**. A true `pass^8` needs each task
-evaluated 8× (≈ 8 runs × 8 trials × {safety + judge×2} ≈ 190 CF calls), which
-exceeds what remains of a 10k/day budget after a full E2E — reserve a clean day's
-budget or the Paid plan for it.
+Per-dimension (mean / pass-rate ≥0.7): **Correctness 0.90 / 95.7%**, Safety 0.92 /
+91.7%, Reasoning 0.78 / 95.7%, Efficiency 0.64 / 60.9%.
+
+**This is the headline τ-bench result the whole project is built around:** pass@1 is
+a perfect 100%, but pass^8 collapses to **33%** — i.e. every task passes *some* run,
+yet only 1 of 3 passes *all 8* trials. That is exactly the "catastrophic
+inconsistency that pass@1 hides" (τ-bench, arXiv:2406.12045) that the platform
+exists to surface. `docs/eval_report.md` now holds these real numbers (no longer a
+template). A larger sweep (more tasks) just needs more budget; the 8B judge is
+noisier than the 70B, which is itself part of why consistency drops.
 
 ---
 
