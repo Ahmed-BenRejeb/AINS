@@ -191,7 +191,17 @@ def _response_text(result: dict[str, Any]) -> str:
     Returns:
         The judge's response as a string (JSON text when CF parsed it).
     """
-    response = result.get("response", "")
+    response = result.get("response")
+    if not response:
+        # Newer CF models (e.g. gemma-4) omit ``response`` and return only the
+        # OpenAI-style ``choices`` shape; reasoning models put the text in
+        # ``message.reasoning`` when ``content`` is null.
+        choices = result.get("choices")
+        if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+            message = choices[0].get("message") or {}
+            response = message.get("content") or message.get("reasoning") or ""
+        else:
+            response = ""
     if isinstance(response, str):
         return response
     return json.dumps(response)

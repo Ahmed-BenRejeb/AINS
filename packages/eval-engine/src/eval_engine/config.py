@@ -38,10 +38,11 @@ def cf_ai_url() -> str:
 
 
 # Default model ids match root CLAUDE.md Section 0 / .env; env overrides win.
-# Gemma 4 26B (a4b) replaces Llama 3.3 70B as the judge/RCA model — ~7x cheaper
-# per output neuron (27,273 vs 204,805 neurons/M out), which matters because the
-# calibrated judge runs twice per trial × PASS_AT_K_TRIALS.
-_DEFAULT_MODEL_MAIN = "@cf/google/gemma-4-26b-a4b-it"
+# Llama 3.1 8B (fp8-fast) replaces Llama 3.3 70B as the judge/RCA model — ~6x
+# cheaper per output neuron (34,868 vs 204,805 neurons/M out), which matters
+# because the calibrated judge runs twice per trial × PASS_AT_K_TRIALS. It also
+# returns clean JSON content directly (unlike the gemma-4 reasoning variant).
+_DEFAULT_MODEL_MAIN = "@cf/meta/llama-3.1-8b-instruct-fp8-fast"
 _DEFAULT_MODEL_SAFETY = "@cf/meta/llama-guard-3-8b"
 _DEFAULT_MODEL_EMBED = "@cf/baai/bge-base-en-v1.5"
 
