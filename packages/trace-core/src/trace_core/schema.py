@@ -262,6 +262,40 @@ class DriftReport(BaseModel):
     )
 
 
+class EvaluatorQuality(BaseModel):
+    """Quality of the evaluator itself, measured against a human-labelled gold set.
+
+    Implements the UC1 "evaluation of the evaluator" criterion (official brief §2.4
+    "Should"): the team defines and reports at least one metric assessing the
+    quality of the evaluation system. The evaluator is run over a gold set of runs
+    with known human verdicts; agreement is reported as raw accuracy **and** Cohen's
+    κ (chance-corrected, so a judge that always says "pass" on a mostly-passing set
+    is not credited). ``per_label_recall`` and ``agreement_band`` make it explainable.
+    """
+
+    n_cases: int = Field(ge=0, description="Number of gold-labelled cases scored.")
+    n_agreements: int = Field(
+        ge=0, description="Cases where the evaluator's verdict matched the human label."
+    )
+    accuracy: float = Field(
+        ge=0.0, le=1.0, description="Raw agreement: n_agreements / n_cases (0.0 when empty)."
+    )
+    cohen_kappa: float = Field(
+        ge=-1.0,
+        le=1.0,
+        description="Chance-corrected agreement (Cohen's κ): 1 perfect, 0 chance, <0 worse.",
+    )
+    per_label_recall: dict[str, float] = Field(
+        description="Per gold-label fraction the evaluator matched (sensitivity), keyed by label.",
+    )
+    agreement_band: str = Field(
+        description="Qualitative κ band (Landis & Koch): e.g. 'substantial', 'moderate'.",
+    )
+    summary: str = Field(
+        description="Human-readable one-line assessment of evaluator quality.",
+    )
+
+
 # ─── Retrieval & explainability (xqdrant) ──────────────────────────────────────
 
 

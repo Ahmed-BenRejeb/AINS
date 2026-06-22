@@ -14,6 +14,7 @@ import logging
 from trace_core import (
     CONFIDENCE_THRESHOLD,
     DimensionScore,
+    EvaluatorQuality,
     EvalVerdict,
     FailureAttribution,
     SelfEvaluation,
@@ -26,7 +27,8 @@ from ..config import replay_link
 from ..graders import code_grader
 from ..graders.llm_judge import DEFAULT_RUBRIC, calibrated_judge
 from ..graders.safety_filter import check_safety
-from ..models import CodeGraderResult, JudgeVerdict
+from ..metrics.evaluator_quality import score_evaluator
+from ..models import CodeGraderResult, GoldCase, JudgeVerdict
 from ..transcript import build_transcript
 from . import atlassian_client
 
@@ -133,6 +135,29 @@ async def evaluate_run(
     if file_issue and (verdict == "fail" or flag_for_human):
         await _file_issue(eval_verdict)
     return eval_verdict
+
+
+async def evaluate_gold_set(cases: list[GoldCase]) -> EvaluatorQuality:
+    """Score the evaluator against a human-labelled gold set (UC1 §2.4).
+
+    Runs the full evaluation pipeline on each gold case (without filing Jira issues)
+    and compares the evaluator's verdict to the human label, returning agreement
+    accuracy and Cohen's κ. This is the "evaluation of the evaluator" metric: it
+    measures how trustworthy the judge itself is, not any single run.
+
+    Args:
+        cases: Gold-labelled runs (each with its records and expected verdict).
+
+    Returns:
+        An :class:`trace_core.EvaluatorQuality` summarising judge-vs-human agreement.
+    """
+    predicted: list[VerdictLabel] = []
+    gold: list[VerdictLabel] = []
+    for index, case in enumerate(cases):
+        verdict = await evaluate_run(case.run_id, index, case.records, file_issue=False)
+        predicted.append(verdict.verdict)
+        gold.append(case.expected)
+    return score_evaluator(predicted, gold)
 
 
 async def _file_issue(verdict: EvalVerdict) -> None:

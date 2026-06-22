@@ -20,6 +20,7 @@ from trace_core import (
     DimensionScore,
     DriftReport,
     DuplicateVerdict,
+    EvaluatorQuality,
     EvalVerdict,
     FailureAttribution,
     RcaDraft,
@@ -165,6 +166,19 @@ def _drift_report() -> DriftReport:
     )
 
 
+def _evaluator_quality() -> EvaluatorQuality:
+    return EvaluatorQuality(
+        n_cases=10,
+        n_agreements=8,
+        accuracy=0.8,
+        cohen_kappa=0.6,
+        per_label_recall={"pass": 0.83, "fail": 0.75},
+        agreement_band="moderate",
+        summary="Evaluator agreed with 8/10 human gold verdicts (accuracy 80%); "
+        "Cohen's κ 0.60 (moderate).",
+    )
+
+
 _ALL_INSTANCES: list[BaseModel] = [
     _step_metadata(),
     _audit_block(),
@@ -179,6 +193,7 @@ _ALL_INSTANCES: list[BaseModel] = [
     _rca_draft(),
     _duplicate_verdict(),
     _drift_report(),
+    _evaluator_quality(),
 ]
 
 

@@ -17,12 +17,19 @@ import httpx
 from eval_engine.drift.detector import detect_drift
 from eval_engine.langfuse_client import init_langfuse
 from eval_engine.metrics.pass_at_k import consistency_rate, pass_at_k
+from eval_engine.models import GoldCase
 from eval_engine.trace_loader import load_trace
-from eval_engine.verdicts.reporter import evaluate_run
+from eval_engine.verdicts.reporter import evaluate_gold_set, evaluate_run
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from trace_core import PASS_AT_K_TRIALS, DriftReport, EvalVerdict, TraceRecord
+from trace_core import (
+    PASS_AT_K_TRIALS,
+    DriftReport,
+    EvaluatorQuality,
+    EvalVerdict,
+    TraceRecord,
+)
 
 logger = logging.getLogger("eval_engine.api")
 
@@ -91,6 +98,12 @@ class DriftRequest(BaseModel):
     )
 
 
+class EvaluatorQualityRequest(BaseModel):
+    """Body for ``POST /evaluator-quality``: a human-labelled gold set."""
+
+    cases: list[GoldCase] = Field(description="Gold-labelled runs (records + expected verdict).")
+
+
 async def _resolve_records(request: EvaluateRequest) -> list[TraceRecord]:
     """Use submitted records, else load the trace from the flight recorder."""
     if request.records is not None:
@@ -135,3 +148,9 @@ async def drift(request: DriftRequest) -> DriftReport:
         baseline_outputs=request.baseline_outputs,
         current_outputs=request.current_outputs,
     )
+
+
+@app.post("/evaluator-quality")
+async def evaluator_quality(request: EvaluatorQualityRequest) -> EvaluatorQuality:
+    """Score the evaluator against a human-labelled gold set (judge-vs-human κ)."""
+    return await evaluate_gold_set(request.cases)
