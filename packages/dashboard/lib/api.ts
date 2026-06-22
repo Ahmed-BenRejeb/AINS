@@ -47,6 +47,8 @@ export const FORGE_REMOTE_URL =
   process.env.NEXT_PUBLIC_FORGE_REMOTE_URL ?? "https://remote.ahmedxsaad.me";
 export const LANGFUSE_URL =
   process.env.NEXT_PUBLIC_LANGFUSE_URL ?? "https://langfuse.ahmedxsaad.me";
+export const DASHBOARD_URL =
+  process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "https://dashboard.ahmedxsaad.me";
 
 // Internal base URLs for server-side fetches (never sent to the browser). On the
 // Azure VM these point at localhost so the dashboard talks to the services directly

@@ -155,10 +155,15 @@ def atlassian_is_configured() -> bool:
 
 # ─── Replay deep links ─────────────────────────────────────────────────────────
 
-_DEFAULT_FLIGHT_URL = "https://flight.ahmedxsaad.me"
+_DEFAULT_DASHBOARD_URL = "https://dashboard.ahmedxsaad.me"
 
 
 def replay_link(run_id: str) -> str:
-    """Deep link to the flight-recorder replay for a run (``FLIGHT_RECORDER_URL``)."""
-    base = os.environ.get("FLIGHT_RECORDER_URL", _DEFAULT_FLIGHT_URL).rstrip("/")
-    return f"{base}/runs/{run_id}"
+    """Human-clickable deep link to the dashboard replay page for a run.
+
+    Points at the **dashboard** (``DASHBOARD_URL``), not the flight-recorder API:
+    the API's ``/runs/{id}`` returns raw JSON, whereas ``/replay/{id}`` is the
+    human page with the launch-replay + bisect UI.
+    """
+    base = os.environ.get("DASHBOARD_URL", _DEFAULT_DASHBOARD_URL).rstrip("/")
+    return f"{base}/replay/{run_id}"

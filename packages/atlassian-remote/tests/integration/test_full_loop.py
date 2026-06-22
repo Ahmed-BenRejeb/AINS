@@ -23,7 +23,7 @@ import httpx
 import pytest
 from atlassian_remote import vector_search
 from atlassian_remote.atlassian_client import AtlassianClient
-from atlassian_remote.config import cf_ai_url, eval_engine_url, model_main
+from atlassian_remote.config import cf_ai_url, eval_engine_url, model_embed, model_main
 from botocore.exceptions import ClientError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -147,13 +147,19 @@ async def test_full_loop_records_evaluates_and_returns(
     async def fake_get_issue(_self: AtlassianClient, _key: str) -> dict[str, Any]:
         return _ISSUE
 
-    async def fake_search(_query: str, collection: str, k: int = 5) -> list[SearchResult]:
+    async def fake_search(
+        _query: str, collection: str, k: int = 5, embedding: list[float] | None = None
+    ) -> list[SearchResult]:
         return [_hit()] if collection == "incidents" else []
 
     monkeypatch.setattr(AtlassianClient, "get_issue", fake_get_issue)
     monkeypatch.setattr(vector_search, "search_similar", fake_search)
 
-    # ── CF Workers AI: the RCA call flows through the recording transport ──
+    # ── CF Workers AI: the embed + RCA calls flow through the recording transport ──
+    httpx_mock.add_response(
+        url=f"{cf_ai_url()}/{model_embed()}",
+        json={"result": {"data": [[0.1, 0.2, 0.3]]}, "success": True},
+    )
     httpx_mock.add_response(
         url=f"{cf_ai_url()}/{model_main()}",
         json={"result": {"response": _rca_draft().model_dump_json()}, "success": True},
@@ -186,14 +192,19 @@ async def test_full_loop_records_evaluates_and_returns(
     assert body["eval_verdict"] is not None
     assert body["eval_verdict"]["verdict"] == "fail"
 
-    # The replay deep link points at this run on the public flight recorder.
-    assert body["replay_link"] == f"https://flight.ahmedxsaad.me/runs/{run_id}"
+    # The replay deep link points at this run on the dashboard (human page, not JSON API).
+    assert body["replay_link"] == f"https://dashboard.ahmedxsaad.me/replay/{run_id}"
 
-    # The RCA-generation LLM call was taped into a MinIO cassette as a full record.
+    # The trace was taped into a MinIO cassette as the full workflow:
+    # embed (llm_call) -> search incidents (tool_call) -> search runbooks (tool_call)
+    # -> RCA (llm_call). Only the 2 HTTP calls (embed + chat) are replayable steps.
     assert f"{run_id}.json" in fake_blobs
     cassette = json.loads(fake_blobs[f"{run_id}.json"])
-    assert len(cassette["records"]) == 1
-    assert cassette["records"][0]["kind"] == "llm_call"
+    kinds = [record["kind"] for record in cassette["records"]]
+    assert kinds == ["llm_call", "tool_call", "tool_call", "llm_call"]
+    assert len(cassette["steps"]) == 2  # embed + chat (tool_calls add no replay step)
+    tool_calls = [r for r in cassette["records"] if r["kind"] == "tool_call"]
+    assert all(r["metadata"]["tool_name"] == "xqdrant.query_points" for r in tool_calls)
 
     # The run manifest + audit row were written to D1.
     tables = [table for table, _ in captured_d1]

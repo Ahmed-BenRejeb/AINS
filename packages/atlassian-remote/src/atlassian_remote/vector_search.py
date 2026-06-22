@@ -85,6 +85,7 @@ async def search_similar(
     collection: str,
     k: int = MAX_RETRIEVAL_RESULTS,
     threshold: float | None = None,
+    embedding: list[float] | None = None,
 ) -> list[SearchResult]:
     """Embed ``query_text`` and return the top relevant hits from ``collection``.
 
@@ -96,6 +97,9 @@ async def search_similar(
             per-collection default (:func:`config.similarity_threshold`) — runbooks
             use a lower floor than incidents because incident→runbook cosine is
             structurally lower than incident→incident.
+        embedding: Optional precomputed query vector. When provided the embed call
+            is skipped and reused (the analyzer embeds the incident once and searches
+            both the incidents and runbooks collections with the same vector).
 
     Returns:
         Hits scoring above the relevance floor, each carrying an
@@ -106,7 +110,8 @@ async def search_similar(
         name="xqdrant-search", input={"query": query_text, "collection": collection}
     )
     try:
-        embedding = await cf_ai_embed_query(query_text)
+        if embedding is None:
+            embedding = await cf_ai_embed_query(query_text)
         response = get_client().query_points(
             collection_name=collection,
             query=embedding,

@@ -161,6 +161,64 @@ class _RecordingCore:
         cassette.save_to_cassette(self.run_id, step_key, stored, record=record)
         self._sequence += 1
 
+    def record_event(
+        self,
+        *,
+        kind: str,
+        input_data: dict[str, Any],
+        output_data: dict[str, Any],
+        metadata: dict[str, Any],
+        input_preview: str | None = None,
+        output_preview: str | None = None,
+    ) -> None:
+        """Tape a semantic (non-HTTP) workflow step into the same run.
+
+        Links into the run's audit chain and appends a full ``TraceRecord`` to the
+        cassette ``records`` (and a D1 ``trace_records`` row), but adds **no**
+        replay step — so it enriches the trace without touching replay/bisect. Used
+        by the analyzer to record tool calls (e.g. xqdrant searches) alongside the
+        embed/chat HTTP steps the transport tapes automatically.
+
+        Args:
+            kind: Step kind (``tool_call`` / ``decision`` / ...).
+            input_data: The step's input payload (hashed).
+            output_data: The step's output payload (hashed).
+            metadata: Trace metadata (e.g. ``tool_name`` / ``operation``).
+            input_preview: Optional human-readable input summary.
+            output_preview: Optional human-readable output summary.
+        """
+        prev_hash = self._prev_hash
+        step_id = uuid.uuid4().hex
+        self._prev_hash = write_audit_record(
+            run_id=self.run_id,
+            step_id=step_id,
+            kind=kind,  # type: ignore[arg-type]
+            input_data=input_data,
+            output_data=output_data,
+            prev_hash=prev_hash,
+            sequence=self._sequence,
+            input_preview=input_preview,
+            output_preview=output_preview,
+            metadata=metadata,
+        )
+        record = {
+            "run_id": self.run_id,
+            "step_id": step_id,
+            "sequence": self._sequence,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "kind": kind,
+            "input": input_data,
+            "output": output_data,
+            "metadata": metadata,
+            "audit": {
+                "prev_hash": prev_hash,
+                "payload_hash": self._prev_hash,
+                "hmac": sign(self._prev_hash),
+            },
+        }
+        cassette.append_record(self.run_id, record)
+        self._sequence += 1
+
     def _build_record(
         self,
         request: httpx.Request,

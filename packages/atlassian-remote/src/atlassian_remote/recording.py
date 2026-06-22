@@ -70,6 +70,34 @@ class RunRecorder:
         """Number of CF Workers AI calls recorded during the run so far."""
         return self.transport.step_count
 
+    def record_tool_call(
+        self,
+        *,
+        tool_name: str,
+        arguments: dict[str, object],
+        output: dict[str, object],
+        input_preview: str,
+        output_preview: str,
+    ) -> None:
+        """Tape a logical tool call (e.g. an xqdrant search) into the run's trace.
+
+        Enriches the trace with the agent's non-LLM workflow steps so it reads as
+        embed -> search -> search -> reason, not just raw model calls. Best-effort:
+        a recorder hiccup must never fail the analysis. The xqdrant searches reuse
+        the already-taped query embedding, so no extra LLM call is made.
+        """
+        try:
+            self.transport.record_event(
+                kind="tool_call",
+                input_data={"tool_name": tool_name, "arguments": arguments},
+                output_data=output,
+                metadata={"tool_name": tool_name, "operation": "retrieval"},
+                input_preview=input_preview,
+                output_preview=output_preview,
+            )
+        except Exception as exc:  # recording must never break the incident analysis
+            logger.warning("failed to record tool call %s: %s", tool_name, exc)
+
 
 def persist_manifest(
     run_id: str,

@@ -201,9 +201,10 @@ _DEFAULT_EVAL_ENGINE_URL = "http://localhost:8000"
 """eval-engine base URL. The default is the internal localhost port — the analyze
 flow calls it VM-to-VM, never the public tunnel (``eval.ahmedxsaad.me``)."""
 
-_DEFAULT_FLIGHT_RECORDER_URL = "https://flight.ahmedxsaad.me"
-"""Flight recorder base URL — used only to build the human-clickable replay deep
-link, so it defaults to the public tunnel, not localhost."""
+_DEFAULT_DASHBOARD_URL = "https://dashboard.ahmedxsaad.me"
+"""Dashboard base URL — the human-clickable replay deep link points here (the
+dashboard's ``/replay/{id}`` page), not the flight-recorder API (whose
+``/runs/{id}`` returns raw JSON). Defaults to the public tunnel."""
 
 
 def eval_engine_url() -> str:
@@ -211,14 +212,18 @@ def eval_engine_url() -> str:
     return os.environ.get("EVAL_ENGINE_URL", _DEFAULT_EVAL_ENGINE_URL).rstrip("/")
 
 
-def flight_recorder_url() -> str:
-    """Public flight-recorder base URL (``FLIGHT_RECORDER_URL``) for replay links."""
-    return os.environ.get("FLIGHT_RECORDER_URL", _DEFAULT_FLIGHT_RECORDER_URL).rstrip("/")
+def dashboard_url() -> str:
+    """Public dashboard base URL (``DASHBOARD_URL``) for human replay deep links."""
+    return os.environ.get("DASHBOARD_URL", _DEFAULT_DASHBOARD_URL).rstrip("/")
 
 
 def replay_link(run_id: str) -> str:
-    """Deep link a human can open to replay a recorded run in the flight recorder."""
-    return f"{flight_recorder_url()}/runs/{run_id}"
+    """Human-clickable deep link to the dashboard replay page for a run.
+
+    Points at the dashboard ``/replay/{id}`` page (launch-replay + bisect UI), not
+    the flight-recorder API's ``/runs/{id}`` (which returns raw JSON).
+    """
+    return f"{dashboard_url()}/replay/{run_id}"
 
 
 EVAL_TIMEOUT_SECONDS = 30.0

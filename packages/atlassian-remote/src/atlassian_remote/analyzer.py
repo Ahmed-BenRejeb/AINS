@@ -68,6 +68,29 @@ def extract_incident_text(issue: dict[str, Any]) -> str:
     return f"{summary}\n\n{description_text}".strip()
 
 
+def _record_search(
+    recorder: recording.RunRecorder,
+    label: str,
+    collection: str,
+    incident_text: str,
+    k: int,
+    hits: list[Any],
+) -> None:
+    """Tape one xqdrant retrieval as a tool_call step on the run's trace."""
+    top = f", top {hits[0].score:.3f}" if hits else ""
+    recorder.record_tool_call(
+        tool_name="xqdrant.query_points",
+        arguments={"collection": collection, "k": k},
+        output={
+            "count": len(hits),
+            "top_score": hits[0].score if hits else None,
+            "hits": [hit.id for hit in hits],
+        },
+        input_preview=f"search {label} (k={k}) for: {incident_text[:140]}",
+        output_preview=f"{len(hits)} {label} hit(s){top}",
+    )
+
+
 async def analyze_incident(
     incident_key: str,
     requested_by: str,
@@ -91,8 +114,18 @@ async def analyze_incident(
     incident_text = extract_incident_text(issue)
 
     with recording.RunRecorder(run_id) as recorder:
-        similar = await vector_search.search_similar(incident_text, incidents_collection(), k=k)
-        runbooks = await vector_search.search_similar(incident_text, runbooks_collection(), k=k)
+        # Embed the incident once and reuse the vector for both collections, then
+        # tape each retrieval as a tool_call so the trace reads
+        # embed -> search incidents -> search runbooks -> reason.
+        embedding = await vector_search.cf_ai_embed_query(incident_text)
+        similar = await vector_search.search_similar(
+            incident_text, incidents_collection(), k=k, embedding=embedding
+        )
+        _record_search(recorder, "incidents", incidents_collection(), incident_text, k, similar)
+        runbooks = await vector_search.search_similar(
+            incident_text, runbooks_collection(), k=k, embedding=embedding
+        )
+        _record_search(recorder, "runbooks", runbooks_collection(), incident_text, k, runbooks)
         draft = await rca_generator.generate_rca(incident_text, similar, runbooks)
 
     recording.persist_manifest(
