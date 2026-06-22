@@ -186,7 +186,7 @@ export interface VerdictSummary {
 /** Aggregate metrics shown in the home-page stats row. */
 export interface OverviewStats {
   total_runs: number;
-  pass_rate: number; // 0–1
-  pass_hat_k: number; // 0–1, last 8 trials
+  pass_rate: number; // 0–1, fraction of evaluated runs whose latest verdict is pass
+  pass_hat_k: number; // 0–1, fraction of runs where ALL trials passed (true pass^k)
   flagged_for_human: number;
 }
