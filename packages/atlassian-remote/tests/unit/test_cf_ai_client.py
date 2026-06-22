@@ -107,3 +107,36 @@ async def test_post_raises_after_429_budget_exhausted(
         await cf_ai_client.cf_ai_chat([{"role": "user", "content": "x"}])
 
     assert sleeps == [30.0, 30.0, 30.0]
+
+
+async def test_post_fails_fast_on_daily_quota_429(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A 429 carrying CF code 4006 (daily neurons spent) fails fast — no retry/backoff.
+
+    Reproduces the live cause of the /search 500: the embeddings endpoint returns a
+    non-transient 429. Retrying it 3×30s pointlessly burns 90s and still fails (and
+    blows the Forge 25s timeout), so the quota error must raise immediately.
+    """
+    sleeps = _patch_sleep(monkeypatch)
+    httpx_mock.add_response(
+        status_code=429,
+        json={
+            "success": False,
+            "errors": [
+                {
+                    "code": 4006,
+                    "message": (
+                        "AiError: you have used up your daily free allocation of "
+                        "10,000 neurons, please upgrade to Cloudflare's Workers Paid plan"
+                    ),
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await cf_ai_client.cf_ai_embed(["database connection pool exhausted"])
+
+    assert sleeps == []  # no backoff
+    assert len(httpx_mock.get_requests()) == 1  # no retry — failed fast

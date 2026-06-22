@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import httpx
 import pytest
 from atlassian_remote import analyzer, cf_ai_client, vector_search
 from atlassian_remote.models import AnalyzeResult, DuplicateResult
@@ -196,3 +197,32 @@ def test_embed_happy_path(client: TestClient, monkeypatch: pytest.MonkeyPatch) -
 
     assert response.status_code == 200
     assert response.json()["embeddings"] == [[0.1, 0.2], [0.1, 0.2]]
+
+
+def test_search_maps_upstream_cf_429_to_503(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A CF Workers AI 429 (quota exhausted) surfaces as a clean 503, not a 500.
+
+    Regression for the live /search failure: the embeddings call returned a 429,
+    which propagated as an unhandled 500. An upstream dependency being unavailable
+    is a 503 (retry later), and the body carries a descriptive message.
+    """
+
+    async def upstream_429(query: str, index: str, k: int = 5) -> list[SearchResult]:
+        request = httpx.Request(
+            "POST", "https://api.cloudflare.com/client/v4/accounts/x/ai/run/@cf/baai/bge"
+        )
+        response = httpx.Response(
+            429,
+            request=request,
+            json={"errors": [{"code": 4006, "message": "daily free allocation of neurons"}]},
+        )
+        raise httpx.HTTPStatusError("429", request=request, response=response)
+
+    monkeypatch.setattr(vector_search, "search_similar", upstream_429)
+
+    response = client.post("/search", json={"query": "db", "index": "incidents"}, headers=_AUTH)
+
+    assert response.status_code == 503
+    assert "retry later" in response.json()["detail"]

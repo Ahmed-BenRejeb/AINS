@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from atlassian_remote import cf_ai_client, vector_search
+from atlassian_remote import cf_ai_client, langfuse_client, vector_search
 from qdrant_client.http.models import QueryResponse, ScoredPoint
 from trace_core import VECTOR_SIMILARITY_THRESHOLD
 
@@ -101,3 +101,52 @@ async def test_empty_results_when_nothing_relevant(fake_search: Any) -> None:
     fake_search([_point("a", 0.40, {"text": "x"}), _point("b", 0.20, {"text": "y"})])
 
     assert await vector_search.search_similar("query", "runbooks") == []
+
+
+async def test_runbooks_use_lower_threshold_than_incidents(fake_search: Any) -> None:
+    """A 0.65 hit is dropped for incidents (floor 0.75) but kept for runbooks (0.60).
+
+    Regression for the runbooks-always-0 bug: incident→runbook cosine tops ~0.71 on
+    the seeded data, so the strict incident floor silently dropped every runbook.
+    The runbooks collection now uses a lower, separately-tuned relevance floor.
+    """
+    fake_search([_point("rb", 0.65, {"text": "Runbook: DB Connection Pool Exhaustion"})])
+
+    assert await vector_search.search_similar("query", "incidents") == []
+
+    runbook_hits = await vector_search.search_similar("query", "runbooks")
+    assert [r.id for r in runbook_hits] == ["rb"]
+
+
+async def test_explicit_threshold_overrides_per_collection_default(fake_search: Any) -> None:
+    """An explicit ``threshold`` argument wins over the per-collection default."""
+    fake_search([_point("a", 0.65, {"text": "x"})])
+
+    # Incidents default to 0.75 → empty; an explicit 0.50 floor keeps the 0.65 hit.
+    assert await vector_search.search_similar("query", "incidents", threshold=0.50)
+
+
+async def test_span_is_ended_when_embed_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failing embed still ends the Langfuse span (no dangling/orphan observation).
+
+    Regression: the span was started before the embed call, so when embed raised
+    (the live CF quota 429) the span was never ended → an incomplete trace.
+    """
+    ended: list[tuple[object, dict[str, object]]] = []
+
+    async def boom(texts: list[str]) -> list[list[float]]:
+        raise RuntimeError("CF embed 429")
+
+    monkeypatch.setattr(cf_ai_client, "cf_ai_embed", boom)
+    monkeypatch.setattr(langfuse_client, "start_span", lambda **_kw: object())
+    monkeypatch.setattr(
+        langfuse_client,
+        "end_observation",
+        lambda span, output: ended.append((span, output)),
+    )
+
+    with pytest.raises(RuntimeError):
+        await vector_search.search_similar("query", "incidents")
+
+    assert len(ended) == 1  # span ended exactly once, on the failure path
+    assert "error" in ended[0][1]

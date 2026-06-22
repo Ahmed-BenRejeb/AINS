@@ -7,8 +7,11 @@ collection, and each hit is returned as a :class:`trace_core.SearchResult`.
 
 Two behaviours the schema and root ``CLAUDE.md`` require:
 
-* **Threshold filtering** — only hits with ``score > VECTOR_SIMILARITY_THRESHOLD``
-  (0.75) are returned; xqdrant returns weak matches too (root CLAUDE.md §10).
+* **Threshold filtering** — only hits scoring above a per-collection relevance
+  floor (:func:`config.similarity_threshold`) are returned; xqdrant returns weak
+  matches too (root CLAUDE.md §10). Incidents use 0.75; runbooks use a lower floor
+  (0.60) because incident→runbook cosine is structurally lower than
+  incident→incident on the seeded BGE-768 data.
 * **Attribution is always populated** — xqdrant's differentiator. When the payload
   carries an explainability block it is used verbatim; otherwise a fallback
   :class:`trace_core.Attribution` is synthesised with the ``confidence_margin``
@@ -26,13 +29,12 @@ from qdrant_client import QdrantClient
 from qdrant_client.http.models import ScoredPoint
 from trace_core import (
     MAX_RETRIEVAL_RESULTS,
-    VECTOR_SIMILARITY_THRESHOLD,
     Attribution,
     SearchResult,
 )
 
 from . import cf_ai_client, langfuse_client
-from .config import xqdrant_url
+from .config import similarity_threshold, xqdrant_url
 
 _TEXT_KEYS = ("text", "description", "summary", "body")
 
@@ -71,17 +73,18 @@ def _build_attribution(payload: dict[str, object], margin: float) -> Attribution
     return Attribution(dims={}, terms={}, confidence_margin=margin)
 
 
-def _margin(points: list[ScoredPoint], index: int) -> float:
+def _margin(points: list[ScoredPoint], index: int, floor: float) -> float:
     """Score gap from ``points[index]`` to the next hit (or the relevance floor)."""
     if index + 1 < len(points):
         return points[index].score - points[index + 1].score
-    return points[index].score - VECTOR_SIMILARITY_THRESHOLD
+    return points[index].score - floor
 
 
 async def search_similar(
     query_text: str,
     collection: str,
     k: int = MAX_RETRIEVAL_RESULTS,
+    threshold: float | None = None,
 ) -> list[SearchResult]:
     """Embed ``query_text`` and return the top relevant hits from ``collection``.
 
@@ -89,25 +92,36 @@ async def search_similar(
         query_text: Free text to embed and search with (e.g. an incident summary).
         collection: xqdrant collection name (``incidents`` or ``runbooks``).
         k: Maximum number of hits to retrieve before threshold filtering.
+        threshold: Cosine-similarity floor a hit must exceed. ``None`` resolves the
+            per-collection default (:func:`config.similarity_threshold`) — runbooks
+            use a lower floor than incidents because incident→runbook cosine is
+            structurally lower than incident→incident.
 
     Returns:
-        Hits with ``score > VECTOR_SIMILARITY_THRESHOLD``, each carrying an
+        Hits scoring above the relevance floor, each carrying an
         :class:`~trace_core.Attribution`, ordered by descending score.
     """
+    floor = similarity_threshold(collection) if threshold is None else threshold
     span = langfuse_client.start_span(
         name="xqdrant-search", input={"query": query_text, "collection": collection}
     )
-    embedding = await cf_ai_embed_query(query_text)
-    response = get_client().query_points(
-        collection_name=collection,
-        query=embedding,
-        limit=k,
-        with_payload=True,
-    )
+    try:
+        embedding = await cf_ai_embed_query(query_text)
+        response = get_client().query_points(
+            collection_name=collection,
+            query=embedding,
+            limit=k,
+            with_payload=True,
+        )
+    except Exception as exc:
+        # End the span even when the embed/search fails, so a failed run produces a
+        # complete (error-tagged) observation instead of a dangling one in Langfuse.
+        langfuse_client.end_observation(span, output={"error": repr(exc)})
+        raise
     points: list[ScoredPoint] = response.points
     results: list[SearchResult] = []
     for index, point in enumerate(points):
-        if point.score <= VECTOR_SIMILARITY_THRESHOLD:
+        if point.score <= floor:
             continue
         payload = point.payload or {}
         results.append(
@@ -115,7 +129,7 @@ async def search_similar(
                 id=str(point.id),
                 text=_hit_text(payload),
                 score=point.score,
-                attribution=_build_attribution(payload, _margin(points, index)),
+                attribution=_build_attribution(payload, _margin(points, index, floor)),
             )
         )
     langfuse_client.end_observation(

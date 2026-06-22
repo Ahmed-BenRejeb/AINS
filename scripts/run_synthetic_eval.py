@@ -11,7 +11,9 @@ Usage:
     # or directly:
     python scripts/run_synthetic_eval.py --k 8 --output docs/eval_report.md
 
-Requires: LANGFUSE_HOST, CF_D1_DATABASE_ID, ANTHROPIC_API_KEY in .env
+Requires: the eval-engine (:8000) and flight-recorder (:8001) services running,
+plus CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN in .env (the LLM judge calls
+CF Workers AI; there is no Anthropic key in this stack).
 """
 
 import argparse
@@ -23,9 +25,16 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ModuleNotFoundError:
+    # python-dotenv is optional: on the VM the services already have their env
+    # (systemd EnvironmentFile) and this script only talks to them over localhost,
+    # so there is nothing to load from a repo-root .env.
+    pass
 
 EVAL_API    = os.environ.get("EVAL_API_URL", "http://localhost:8000")
 FLIGHT_API  = os.environ.get("FLIGHT_API_URL", "http://localhost:8001")
@@ -90,10 +99,16 @@ class EvalReport:
 # ── API Helpers ───────────────────────────────────────────────────────────────
 
 def get_all_runs() -> list[dict]:
-    """Fetch all recorded runs from the flight recorder."""
+    """Fetch all recorded runs from the flight recorder.
+
+    The flight recorder ``GET /runs`` returns a bare JSON array of manifest rows
+    (not an object with a ``runs`` key), so the response is used directly.
+    """
     r = requests.get(f"{FLIGHT_API}/runs")
     r.raise_for_status()
-    return r.json()["runs"]
+    payload = r.json()
+    # Tolerate both shapes: a bare list (current API) or {"runs": [...]}.
+    return payload["runs"] if isinstance(payload, dict) else payload
 
 
 def evaluate_run(run_id: str, k: int) -> list[dict]:
