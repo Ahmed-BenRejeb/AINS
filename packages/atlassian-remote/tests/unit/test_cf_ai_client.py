@@ -30,7 +30,7 @@ async def test_cf_ai_chat_returns_response_text(httpx_mock: HTTPXMock) -> None:
     assert out == "root cause: db pool"
     request = httpx_mock.get_requests()[0]
     assert request.headers["Authorization"] == "Bearer token-test"
-    assert "@cf/meta/llama-3.3-70b-instruct-fp8-fast" in str(request.url)
+    assert "@cf/google/gemma-4-26b-a4b-it" in str(request.url)
 
 
 async def test_cf_ai_embed_returns_vectors(httpx_mock: HTTPXMock) -> None:

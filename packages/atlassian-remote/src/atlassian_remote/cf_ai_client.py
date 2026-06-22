@@ -190,7 +190,7 @@ async def cf_ai_chat(
 
     Args:
         messages: OpenAI-style ``role``/``content`` messages.
-        model: Model id; defaults to ``CF_AI_MODEL_MAIN`` (Llama 3.3 70B).
+        model: Model id; defaults to ``CF_AI_MODEL_MAIN`` (Gemma 4 26B).
         max_tokens: Completion token budget.
 
     Returns:
