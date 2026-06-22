@@ -114,11 +114,19 @@ def write_audit_record(
     prev_hash: str,
     *,
     sequence: int = 0,
+    input_preview: str | None = None,
+    output_preview: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> str:
     """Build, sign, and write-ahead one audit record to Cloudflare D1.
 
     The record is written to ``trace_records`` before the caller proceeds, so the
     audit trail reflects intent even if the subsequent step fails.
+
+    Only ``input_data``/``output_data`` (and the other payload fields) are hashed.
+    ``input_preview``/``output_preview``/``metadata`` are display-only listing
+    columns, so callers may pass human-readable summaries without affecting the
+    hash chain; when omitted they default to canonical-JSON previews.
 
     Args:
         run_id: UUID of the run.
@@ -129,6 +137,10 @@ def write_audit_record(
         prev_hash: ``payload_hash`` of the previous record (use
             :data:`~flight_recorder.config.GENESIS_PREV_HASH` for the first).
         sequence: 0-based position of the step within the run.
+        input_preview: Optional human-readable input summary for listing.
+        output_preview: Optional human-readable output summary for listing.
+        metadata: Optional extra metadata (e.g. ``operation``/``model_id``) merged
+            into ``metadata_json`` alongside the hmac algorithm.
 
     Returns:
         This record's ``payload_hash`` — pass it as the next record's ``prev_hash``.
@@ -147,9 +159,13 @@ def write_audit_record(
         "payload_hash": payload_hash,
         "prev_hash": prev_hash,
         "hmac": signature,
-        "input_preview": _preview(input_data),
-        "output_preview": _preview(output_data),
-        "metadata_json": canonical_json({"hmac_algorithm": AUDIT_HMAC_ALGORITHM}),
+        "input_preview": input_preview if input_preview is not None else _preview(input_data),
+        "output_preview": (
+            output_preview if output_preview is not None else _preview(output_data)
+        ),
+        "metadata_json": canonical_json(
+            {"hmac_algorithm": AUDIT_HMAC_ALGORITHM, **(metadata or {})}
+        ),
     }
     d1_client.insert(TRACE_RECORDS_TABLE, record)
     return payload_hash

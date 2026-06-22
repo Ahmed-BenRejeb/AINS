@@ -172,8 +172,11 @@ Type=simple
 User=${USER}
 WorkingDirectory=/srv/sentinel/dashboard
 Environment=NODE_ENV=production
-Environment=FLIGHT_RECORDER_INTERNAL_URL=http://localhost:8001
-Environment=EVAL_ENGINE_INTERNAL_URL=http://localhost:8000
+# Use 127.0.0.1 (not localhost): Node resolves "localhost" to IPv6 ::1 first, which
+# the IPv4-bound uvicorn services don't answer, so server-side replay/bisect/verdict
+# fetches hang to the abort timeout and fall back to mock. 127.0.0.1 is direct.
+Environment=FLIGHT_RECORDER_INTERNAL_URL=http://127.0.0.1:8001
+Environment=EVAL_ENGINE_INTERNAL_URL=http://127.0.0.1:8000
 ExecStart=/usr/bin/node /srv/sentinel/dashboard/node_modules/next/dist/bin/next start -p 3001
 Restart=always
 RestartSec=5

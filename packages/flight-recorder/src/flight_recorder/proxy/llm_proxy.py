@@ -41,6 +41,69 @@ from ..config import (
 from ..exceptions import CassetteMissError
 from . import cassette
 
+_PREVIEW_LEN = 200
+
+
+def _chat_text(out_body: Any) -> str:
+    """Extract assistant text from a CF chat response (response / choices / reasoning)."""
+    if not isinstance(out_body, dict):
+        return ""
+    result = out_body.get("result")
+    result = result if isinstance(result, dict) else out_body
+    response = result.get("response")
+    if isinstance(response, str) and response:
+        return response
+    choices = result.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        message = choices[0].get("message") or {}
+        text = message.get("content") or message.get("reasoning") or ""
+        return text if isinstance(text, str) else ""
+    return ""
+
+
+def _summarize_call(
+    input_payload: dict[str, Any], stored: dict[str, Any]
+) -> tuple[str, str, str]:
+    """Derive (operation, input_preview, output_preview) for human-readable display.
+
+    Distinguishes the two CF Workers AI call shapes the agent makes — embeddings
+    (``{"text": [...]}``) and chat (``{"messages": [...]}``) — and renders concise
+    previews instead of dumping raw request/response JSON into the trace UI.
+    """
+    body = input_payload.get("body")
+    out_body = stored.get("body") if isinstance(stored, dict) else None
+
+    if isinstance(body, dict) and "text" in body:
+        texts = body.get("text") or []
+        texts = texts if isinstance(texts, list) else [texts]
+        first = str(texts[0]) if texts else ""
+        in_preview = f"embed {len(texts)} text(s): {first[:_PREVIEW_LEN]}"
+        count, dims = 0, 0
+        if isinstance(out_body, dict):
+            data = (out_body.get("result") or {}).get("data") or out_body.get("data") or []
+            if isinstance(data, list) and data:
+                count = len(data)
+                dims = len(data[0]) if isinstance(data[0], list) else 0
+        out_preview = f"{count} embedding vector(s), {dims}-dim" if count else "embedding vectors"
+        return "embedding", in_preview, out_preview
+
+    if isinstance(body, dict) and "messages" in body:
+        messages = body.get("messages") or []
+        user = next(
+            (
+                str(m.get("content", ""))
+                for m in reversed(messages)
+                if isinstance(m, dict) and m.get("role") == "user"
+            ),
+            "",
+        )
+        in_preview = f"chat: {user[:_PREVIEW_LEN]}" if user else "chat request"
+        text = _chat_text(out_body)
+        out_preview = text[:_PREVIEW_LEN] if text else "(no text response)"
+        return "chat", in_preview, out_preview
+
+    return "llm_call", json.dumps(body)[:_PREVIEW_LEN], json.dumps(out_body)[:_PREVIEW_LEN]
+
 
 class _RecordingCore:
     """Shared record/replay logic for the sync and async recording transports.
@@ -80,6 +143,8 @@ class _RecordingCore:
         prev_hash = self._prev_hash
         step_id = uuid.uuid4().hex
         input_payload = self._request_payload(request, step_key)
+        model = request.url.path.split(CF_AI_RUN_PATH_MARKER, 1)[-1] or None
+        operation, in_preview, out_preview = _summarize_call(input_payload, stored)
         self._prev_hash = write_audit_record(
             run_id=self.run_id,
             step_id=step_id,
@@ -88,6 +153,9 @@ class _RecordingCore:
             output_data=stored,
             prev_hash=prev_hash,
             sequence=self._sequence,
+            input_preview=in_preview,
+            output_preview=out_preview,
+            metadata={"model_id": model, "operation": operation},
         )
         record = self._build_record(request, step_id, input_payload, stored, prev_hash)
         cassette.save_to_cassette(self.run_id, step_key, stored, record=record)
@@ -108,6 +176,7 @@ class _RecordingCore:
         real model. The audit block reuses the just-written record's hashes.
         """
         model = request.url.path.split(CF_AI_RUN_PATH_MARKER, 1)[-1] or None
+        operation, _in, _out = _summarize_call(input_payload, stored)
         return {
             "run_id": self.run_id,
             "step_id": step_id,
@@ -116,7 +185,7 @@ class _RecordingCore:
             "kind": "llm_call",
             "input": input_payload,
             "output": stored,
-            "metadata": {"model_id": model},
+            "metadata": {"model_id": model, "operation": operation},
             "audit": {
                 "prev_hash": prev_hash,
                 "payload_hash": self._prev_hash,

@@ -95,6 +95,33 @@ def test_persist_inserts_when_configured(monkeypatch: pytest.MonkeyPatch) -> Non
     verdict_store._query_url.cache_clear()
 
 
+def test_row_to_verdict_roundtrips_a_persisted_row() -> None:
+    """A persisted row reconstructs into a faithful EvalVerdict for the dashboard."""
+    row = verdict_store._row(_verdict())
+    rebuilt = verdict_store._row_to_verdict(row)
+    assert rebuilt.run_id == "run-123"
+    assert rebuilt.verdict == "fail"
+    assert set(rebuilt.dimensions) == {"correctness", "safety"}
+    assert rebuilt.dimensions["correctness"].score == pytest.approx(0.4)
+    assert rebuilt.self_evaluation.flag_for_human is True
+    assert rebuilt.self_evaluation.judge_confidence == pytest.approx(0.55)
+    assert rebuilt.failure_attribution is not None
+    assert rebuilt.failure_attribution.step == 2
+    assert rebuilt.failure_attribution.component == "retrieval"
+
+
+def test_get_verdict_returns_none_when_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With D1 unset, the read is a no-op (None) and makes no request."""
+    monkeypatch.delenv("CF_D1_DATABASE_ID", raising=False)
+
+    def boom(*_a: Any, **_k: Any) -> None:
+        raise AssertionError("must not touch the network when D1 is unconfigured")
+
+    monkeypatch.setattr(httpx, "Client", boom)
+    assert verdict_store.get_verdict("run-123") is None
+    assert verdict_store.list_verdicts() == []
+
+
 def test_persist_swallows_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     """A D1 failure is logged and swallowed (returns False), never raised."""
     monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acct")
