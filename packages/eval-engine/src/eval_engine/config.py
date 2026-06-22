@@ -13,13 +13,23 @@ import os
 
 
 def cf_account_id() -> str:
-    """Cloudflare account id (``CLOUDFLARE_ACCOUNT_ID``)."""
-    return os.environ["CLOUDFLARE_ACCOUNT_ID"]
+    """Cloudflare account id for Workers AI calls.
+
+    Prefers ``CF_AI_ACCOUNT_ID`` so Workers AI can run on a *separate* account
+    (e.g. a teammate's) with its own free 10k-neuron/day budget, and falls back to
+    ``CLOUDFLARE_ACCOUNT_ID``. D1 reads ``CLOUDFLARE_*`` directly, so the trace
+    store stays on the primary account regardless.
+    """
+    return os.environ.get("CF_AI_ACCOUNT_ID") or os.environ["CLOUDFLARE_ACCOUNT_ID"]
 
 
 def cf_api_token() -> str:
-    """Cloudflare API token used as Bearer auth (``CLOUDFLARE_API_TOKEN``)."""
-    return os.environ["CLOUDFLARE_API_TOKEN"]
+    """Cloudflare API token (Bearer) for Workers AI calls.
+
+    Prefers ``CF_AI_API_TOKEN`` (pair it with ``CF_AI_ACCOUNT_ID``), falls back to
+    ``CLOUDFLARE_API_TOKEN``.
+    """
+    return os.environ.get("CF_AI_API_TOKEN") or os.environ["CLOUDFLARE_API_TOKEN"]
 
 
 def cf_ai_url() -> str:
