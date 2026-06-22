@@ -26,6 +26,7 @@ eval-engine/
 │   ├── models.py                local result models: SafetyResult, CodeGraderResult, JudgeVerdict
 │   ├── transcript.py            render a run's TraceRecords into a judge/safety transcript
 │   ├── cassette_store.py        boto3 read of the full run cassette from MinIO (non-lossy)
+│   ├── verdict_store.py         best-effort D1 write of the EvalVerdict → eval_verdicts table
 │   ├── trace_loader.py          load a run trace — cassette first, D1 previews as fallback
 │   ├── graders/
 │   │   ├── code_grader.py       fast deterministic checks (schema, tool calls, outcome, loop, tokens)
@@ -148,10 +149,12 @@ verdict = await evaluate_run(run_id, trial_number=0, records=records)
 ## Status (20 Jun 2026)
 
 Core pipeline built, green, and **live-validated** by the Phase 4 loop: `make
-test-uc1` passes (41 tests); ruff/black/isort/mypy --strict clean. `trace_loader`
+test-uc1` passes (45 tests); ruff/black/isort/mypy --strict clean. `trace_loader`
 now loads the **full MinIO cassette** via `cassette_store` (D1 row previews are the
 fallback only). Jira filing in `reporter._file_issue` is **best-effort** (a Jira
-outage/rejection no longer fails `/evaluate`). `cf_ai_chat` re-serializes CF Workers
+outage/rejection no longer fails `/evaluate`). Each verdict is also **persisted to
+the D1 `eval_verdicts` table** via `verdict_store.persist_verdict` (best-effort,
+no-ops when D1 env is unset) — verified live (a `/analyze`→`/evaluate` wrote a row). `cf_ai_chat` re-serializes CF Workers
 AI's JSON-mode dict response to a string so the judge can `model_validate_json` it.
 `cf_ai_client._post` retries CF Workers AI rate limits / transient 5xx (429 → 30s
 ×3, 5xx → 5s ×2, via `asyncio.sleep`); LLM calls are also traced to Langfuse.

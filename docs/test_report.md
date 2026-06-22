@@ -1,35 +1,34 @@
-# Sentinel Test Report — 2026-06-22
+# Sentinel Test Report — 2026-06-22 (live re-run, CF budget restored)
 
 > Comprehensive system test + fixes. Run on the Azure VM (`48.220.48.34`) against
 > the live deployed stack. Author: Claude Code (Opus 4.8) at the request of Ahmed Saad.
 >
-> **Headline:** Three real code/script defects found and fixed (with regression
-> tests); the platform's recording → replay loop verified working end-to-end with
-> **zero live calls**; Langfuse tracing confirmed working (53 complete traces).
+> **Headline:** The Cloudflare Workers AI daily budget **cleared on schedule** at
+> ~15:00 UTC (24h after the prior day's run — confirming the rolling-window theory),
+> so the whole pipeline was exercised **live**. All three previously-reported issues
+> are **fixed and verified end-to-end with real LLM calls**: `/search` returns 200,
+> runbooks now retrieve and are cited in RCAs, and Langfuse captured fresh traces
+> (53 → 87). A full 5-incident `/analyze` loop ran green (real RCA + eval verdict +
+> replay link for each), with cassettes, D1 manifests, and D1 trace rows all
+> confirmed. One **new gap was found and fixed**: eval verdicts were never persisted
+> to the D1 `eval_verdicts` table (the table existed but nothing wrote to it) — now
+> persisted best-effort, with a row verified live.
 >
-> **One environmental blocker dominates this run: the Cloudflare Workers AI `run`
-> API returns HTTP 429 `code 4006` ("you have used up your daily free allocation of
-> 10,000 neurons") for *every* active model**, so every live embedding/LLM/judge
-> call currently fails. **Unresolved discrepancy:** the Cloudflare **dashboard shows
-> `Neurons used today: 0/10k` (resets 00:00 UTC)**, which disagrees with the
-> gateway's 4006. Verified: the API token is valid/active and sees **only** the
-> correct account (`6a98621e…`); a deprecated model returns a *different* error
-> (410), proving requests reach the AI layer (not an auth/wrong-account problem);
-> the token lacks analytics-read scope, so CF's authoritative usage can't be queried
-> from here to settle which side is stale. **Leading explanation:** the free
-> allocation is enforced on a **rolling ~24h window** at the gateway, while the
-> dashboard panel is a **calendar-day display** that zeroed at 00:00 UTC — yesterday's
-> E2E ran ~14:00 UTC, so a rolling window would not clear until ~14:00 UTC today
-> (consistent with it still being blocked at 00:29 and 01:41 UTC). Whatever the
-> cause, live calls fail **now**; the code fixes below make that failure graceful
-> (fail-fast + 503) instead of a 90s hang. **Re-test after ~14:00 UTC**, or demo
-> from cassettes via deterministic `/replay` (zero neurons).
+> **Operational caveat (important for the demo):** the free CF budget is genuinely
+> ~10k neurons/day and is **easily consumed by a full test pass**. The live E2E (7
+> `/analyze`, each spending the 70B model on RCA **plus** a calibrated judge ×2) plus
+> a partial `pass^k` sweep **re-exhausted the entire daily allocation by ~15:44 UTC**
+> — the `make eval` k=8 sweep therefore 503'd partway and scored 0 tasks (an
+> environmental limit, not a logic failure). The substantive eval evidence is the
+> **6 real single-trial verdicts** captured live before exhaustion (4 pass, 1 fail,
+> 1 uncertain). A full `pass^k` sweep needs the Workers **Paid** plan or a clean
+> day's budget reserved for it.
 
 ---
 
 ## Data Audit (pre-test state)
 
-Captured before any change. All values are live reads.
+Captured at the start of the session (before any change). All values are live reads.
 
 ### Services (systemd) + health
 
@@ -41,11 +40,10 @@ Captured before any change. All values are live reads.
 | Dashboard | `sentinel-dashboard` | 3001 | active | ✓ |
 | Cloudflare Tunnel | `cloudflared` | — | active | — |
 
-`/srv/sentinel/.env` keys present: all 21 required keys (CF, D1, Atlassian,
-Langfuse, MinIO, Forge secret, HMAC). **Note:** `XQDRANT_*`,
-`VECTOR_SIMILARITY_THRESHOLD`, `RUNBOOK_SIMILARITY_THRESHOLD`, `EVAL_ENGINE_URL`,
-`FLIGHT_RECORDER_URL` are **not** in `/srv/sentinel/.env` — they resolve from code
-defaults (this matters for Issue 2, below).
+`/srv/sentinel/.env` carries the CF / D1 / Atlassian / Langfuse / MinIO / Forge /
+HMAC keys. `XQDRANT_*`, `VECTOR_SIMILARITY_THRESHOLD`, `RUNBOOK_SIMILARITY_THRESHOLD`,
+`EVAL_ENGINE_URL`, `FLIGHT_RECORDER_URL` are **not** in `.env` — they resolve from
+code defaults (relevant to Issue 2).
 
 ### xqdrant (`localhost:6333`)
 
@@ -54,335 +52,252 @@ defaults (this matters for Issue 2, below).
 | `incidents` | **101** | `AO-7` "DB connection refused — max connections exceeded"; `AO-49` "Crypto mining process detected — high CPU" (fields: `source_id`, `title`, `text`, `category`, `source_type`) |
 | `runbooks` | **11** | `Runbook: High CPU Utilization`; `Runbook: Database Connection Pool Exhaustion` (all share the same templated Overview/Detection/Diagnosis/Remediation skeleton) |
 
-### Cloudflare D1 (`sentinel-traces`)
+### Cloudflare D1 (`sentinel-traces`) — pre-test
 
-| Table | Rows |
-|---|---|
-| `run_manifests` | **13** |
-| `trace_records` | **42** |
-| `eval_verdicts` | **0** |
-
-> `eval_verdicts` is empty: the eval-engine reporter files verdicts as **Jira
-> issues**, it does not persist a D1 `eval_verdicts` row. See Recommendations.
+| Table | Rows (pre) | Rows (post-test) |
+|---|---|---|
+| `run_manifests` | **13** | 20 |
+| `trace_records` | **42** | 61 |
+| `eval_verdicts` | **0** | **1** (after the persistence fix; see below) |
 
 ### MinIO (`sentinel-cassettes`)
 
-**14** cassette objects, `~50–55 KB` each (e.g.
-`aca11b2dbcf14bebb60a656834c5df4d.json`). Keyed by `run_id` (uuid4 hex).
+**14** cassette objects pre-test → **21** post-test, `~50–55 KB` each, keyed by
+`run_id` (uuid4 hex).
 
 ### Atlassian (`AO` project)
 
-**103** issues. Most recent include `AO-104` "Sentinel eval uncertain: 75d5ca5e
-(trial 0)" — proof the eval-engine has auto-filed verdict issues — plus the seeded
-100 incidents and a smoke-test issue.
+**103** issues — the seeded 100 incidents plus auto-filed eval verdict issues
+(e.g. `AO-104` "Sentinel eval uncertain: 75d5ca5e (trial 0)").
 
 ### Langfuse (`http://127.0.0.1:3000`, project **AINS**)
 
-Health `{"status":"OK","version":"3.188.0"}`; all 6 containers up.
-**53 traces** present: `xqdrant-search` ×20, `llm-judge` ×20, `rca-generation`
-×10. All from a single ~7-minute window on **2026-06-21 13:58–14:05** (the last
-successful E2E run). Sampled `rca-generation` trace: 1 GENERATION observation with
-`model`, `input`, and `output` all populated → the data is complete and lands in
-the correct project.
+Health `{"status":"OK","version":"3.188.0"}`; all 6 containers up. **53 traces**
+pre-test (all from a single window on 2026-06-21 14:05) → **87 traces** post-test
+(fresh `xqdrant-search` / `rca-generation` / `llm-judge` spans from this session's
+live calls).
 
 ---
 
 ## Service Health
 
 All three Python services `active (running)` under systemd, all `/health` → 200,
-env loaded from `EnvironmentFile=/srv/sentinel/.env`. Dependencies: xqdrant,
-MinIO, D1, Atlassian, Langfuse all reachable. **The single failing dependency is
-Cloudflare Workers AI** — see the box at the top.
+env loaded from `EnvironmentFile=/srv/sentinel/.env`. After pulling the new drift
+feature from `origin/main` (`6ee8eb5` `feat(uc1): behavioural drift detection`), the
+services were `uv sync`'d and restarted to load the latest code. Dependencies
+(xqdrant, MinIO, D1, Atlassian, Langfuse, CF Workers AI) all reachable.
 
-Direct probe of the embeddings model:
+**Cloudflare Workers AI budget timeline (this session):**
 
 ```
-POST /accounts/<acct>/ai/run/@cf/baai/bge-base-en-v1.5
-→ HTTP 429
-{"errors":[{"code":4006,"message":"AiError: you have used up your daily free
- allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan..."}]}
+~01:41 UTC  embed/chat/safety → 429 code 4006 (blocked, prior day's spend)
+~15:20 UTC  embed → HTTP 200, chat → HTTP 200   (budget CLEARED — rolling window)
+15:24–15:44 live E2E (7×/analyze) + k=8 eval sweep  (consumes the day's budget)
+~15:44 UTC  embed → 429 code 4006 again          (re-exhausted by this test pass)
 ```
+
+This is direct confirmation of the rolling-window model: the budget cleared ~24h
+after the previous run and was then fully consumed by one comprehensive test pass.
 
 ---
 
-## Issue 1: `/search` endpoint (500 → hang)
+## Issue 1: `/search` endpoint (was 500 / hang)
 
-**Reported:** `/search` returns 500.
+**Root cause:** `/search` embeds the query via `cf_ai_client.cf_ai_embed`; when CF
+returned the daily-quota **429 (code 4006)**, the retry policy treated it as
+transient → `asyncio.sleep(30)` × 3 = **90 s** of pointless backoff, then a
+re-raised `httpx.HTTPStatusError` surfaced as a bare **500** past the client timeout.
 
-**Root cause (found via the live traceback):** `/search` embeds the query through
-`cf_ai_client.cf_ai_embed`, which hit CF Workers AI and got a **429** (daily neuron
-allocation exhausted, code 4006 — *not* a transient burst limit). Two compounding
-defects turned that into the observed failure:
+**Fix (committed previously, verified this session):**
+- `cf_ai_client._post` **fails fast** on the daily-quota 429 (detects code 4006 /
+  "daily free allocation" / "neurons") — no backoff.
+- `api.py` maps any upstream `httpx.HTTPStatusError` to a clean **503**.
 
-1. The retry policy treated **all** 429s as transient → `asyncio.sleep(30)` × 3 =
-   **90 s** of pointless backoff before finally re-raising. A `curl` with a 30 s
-   timeout therefore saw a *hang* (and the Forge client's 25 s budget would always
-   time out); the eventual re-raised `httpx.HTTPStatusError` surfaced as a bare
-   **500** (no exception handler).
-2. An upstream dependency outage was being reported as a **500** ("our bug") rather
-   than a **503** ("upstream unavailable, retry later").
-
-**Fix:**
-- `cf_ai_client._post` now **fails fast** on the daily-quota 429 (detects CF error
-  code 4006 / "daily free allocation" / "neurons" in the body) — no 90 s backoff.
-  (`packages/atlassian-remote/src/atlassian_remote/cf_ai_client.py`)
-- `api.py` adds an `httpx.HTTPStatusError` exception handler mapping any upstream CF
-  error to a clean **503** with a descriptive message.
-  (`packages/atlassian-remote/api.py`)
-
-**Live verification (after restart):**
+**Live verification (CF available):**
 
 ```
 POST /search {"query":"database connection pool exhausted","index":"incidents"}
-→ HTTP 503 in 0.110 s
-{"detail":"CF Workers AI rate limit or daily neuron allocation exhausted; retry later"}
+→ HTTP 200 in 4.27 s — 3 hits, scores 0.856 / 0.833 / 0.811
+POST /search {"index":"runbooks", same query}
+→ HTTP 200 in 1.39 s — 3 hits, top 0.785 (Database Connection Pool Exhaustion)
 ```
 
-(Was: 30 s+ hang → 500. Now: fast, correct status, clear message.) `/analyze`
-inherits the same handler — verified it now degrades to **503 in 5 s** (the 5 s is
-the upstream Jira fetch) instead of a 90 s hang.
-
-**Regression tests added (2):**
-- `test_post_fails_fast_on_daily_quota_429` — asserts no backoff sleep and a single
-  request (no retry) on a 4006 429. (`tests/unit/test_cf_ai_client.py`)
-- `test_search_maps_upstream_cf_429_to_503` — asserts `/search` returns 503 (not
-  500) with "retry later" when the embed call raises a 429.
-  (`tests/integration/test_remote_api.py`)
+**Quota-path verification (CF exhausted):** `/search` → **503 in 0.11 s** with
+`"… rate limit or daily neuron allocation exhausted; retry later"` (no hang).
+Both behaviours are now correct. Regression tests:
+`test_post_fails_fast_on_daily_quota_429`, `test_search_maps_upstream_cf_429_to_503`.
 
 ---
 
-## Issue 2: Runbook retrieval (always 0 hits in `/analyze`)
-
-**Reported:** runbooks always return 0 hits even when similar incidents return 2–5;
-threshold believed to be 0.60.
-
-**Measurement (no CF needed — used the BGE-768 vectors already stored in xqdrant;
-queried each incident's stored vector against the `runbooks` collection):**
-
-| Incident | Top runbook (correct match) | Score | Below 0.75? |
-|---|---|---|---|
-| AO-11 Connection pool exhaustion | Database Connection Pool Exhaustion | **0.708** | yes |
-| AO-21 Memory exhaustion after 48h | Memory Leak in Application Services | **0.676** | yes |
-| AO-51 Background job consuming CPU | High CPU Utilization (2nd; MQ 1st 0.693) | **0.654** | yes |
-| AO-71 Firewall blocking traffic | Message Queue Backlog (weak) | **0.621** | yes |
-| AO-91 Message size limit on queue | Message Queue Backlog and Consumer Lag | **0.632** | yes |
-| AO-7 DB connection refused | Database Connection Pool Exhaustion | **0.674** | yes |
-
-For contrast, **incident → incident** top matches score **0.76–0.79** (they clear
-0.75); **incident → runbook** tops out at **~0.71**.
+## Issue 2: Runbook retrieval (was always 0 hits)
 
 **Root cause — two parts:**
-1. **The threshold the code actually used was 0.75, not 0.60.** The constant is
-   imported from `trace_core.VECTOR_SIMILARITY_THRESHOLD` (hard-wired 0.75); the
-   `.env`/`.env.example` knob `VECTOR_SIMILARITY_THRESHOLD=0.75` was **never read**
-   by the code. So the intended "lower it to 0.60" never took effect, and *every*
-   runbook (max ~0.71) was filtered out. The correct runbook is reliably the **top
-   hit** — it was just under the floor.
+1. **The active threshold was 0.75, not 0.60.** The constant was imported from
+   `trace_core.VECTOR_SIMILARITY_THRESHOLD` (hard-wired 0.75), so the `.env` knob was
+   never read. Incident → runbook cosine tops out at ~0.71–0.79 (and via the full
+   incident text, lower), so every runbook fell under the 0.75 floor.
 2. **Generic runbook content.** All 11 runbooks share one boilerplate template,
-   which both compresses the score range and weakens the semantic signal (the title
-   carries most of the discriminating signal). This is *why* incident→runbook
-   cosine is structurally lower than incident→incident.
+   compressing the score range (the title carries most of the discriminating signal).
 
-**Fix:** per-collection relevance floors, env-overridable so the knob works:
-- `config.similarity_threshold(collection)` → incidents use
-  `VECTOR_SIMILARITY_THRESHOLD` (env-overridable, default 0.75); runbooks use a new
-  `RUNBOOK_SIMILARITY_THRESHOLD` (env-overridable, default **0.60**).
-- `vector_search.search_similar(..., threshold=None)` resolves the per-collection
-  floor (and an explicit `threshold` arg still wins).
-- Added `RUNBOOK_SIMILARITY_THRESHOLD=0.60` to `.env.example` (check-docs parity).
+**Fix (committed previously, verified this session):** per-collection floors in
+`atlassian_remote.config` — incidents use `VECTOR_SIMILARITY_THRESHOLD` (0.75),
+runbooks use `RUNBOOK_SIMILARITY_THRESHOLD` (**0.60**, env-overridable);
+`search_similar(threshold=…)` resolves per collection.
 
-At 0.60, every incident in the table above now returns its correct top runbook.
-(Live `/analyze` confirmation is blocked by the CF quota; the fix is proven against
-the stored vectors and by unit tests.)
-
-**Regression tests added (2):**
-`test_runbooks_use_lower_threshold_than_incidents` (a 0.65 hit is dropped for
-incidents, kept for runbooks) and
+**Live verification:** `/search index=runbooks` returns hits with scores
+**0.785 / 0.643 / 0.624** — the two below 0.75 would have been dropped under the old
+floor and are now correctly kept. In the full `/analyze` flow, **every one of the 5
+E2E incidents returned runbooks** (1–5 each) and the RCA `evidence` now **cites
+them** — e.g. AO-11: *"Relevant runbook [06ee8960…] with score 0.72"*. The exact
+symptom (RCAs citing zero runbooks) is gone. Regression tests:
+`test_runbooks_use_lower_threshold_than_incidents`,
 `test_explicit_threshold_overrides_per_collection_default`.
-(`tests/unit/test_vector_search.py`)
-
-> Note on the recorded RCAs: in all 5 recorded runs (below), the LLM's `evidence`
-> cites **only similar incidents, zero runbooks** — the exact downstream symptom of
-> this bug, captured in real recorded output.
 
 ---
 
 ## Issue 3: Langfuse tracing
 
-**Reported:** UI shows no traces / poor data.
+**Diagnosis — tracing works; the prior "empty" was CF-outage staleness.** With CF
+restored, fresh traces landed in real time. Trace count went **53 → 87** during this
+session; the most recent spans (15:26–15:39 UTC) are exactly the expected shape per
+`/analyze`: **2× `xqdrant-search`** (incidents + runbooks) + **1× `rca-generation`**
++ **2× `llm-judge`** (the calibrated judge runs twice for position-bias detection).
+Each trace has its observation populated. Delivery is to
+`LANGFUSE_HOST_INTERNAL=http://127.0.0.1:3000`, project **AINS**; `/api/public/health`
+→ `OK`; both `langfuse-web` / `langfuse-worker` healthy.
 
-**Diagnosis — tracing actually works.** The internal API holds **53 complete
-traces** in the correct project (**AINS**, which is what the `pk-lf-20aa78…` public
-key maps to): `xqdrant-search` ×20, `llm-judge` ×20, `rca-generation` ×10. A
-sampled `rca-generation` trace has a GENERATION observation with `model`, `input`,
-and `output` all populated. Delivery to `LANGFUSE_HOST_INTERNAL=http://127.0.0.1:3000`
-works; the public-host CF challenge (a shell `curl` 403) is expected and is not the
-SDK delivery path.
-
-**Why it *looks* empty / stale:**
-- **(a) Staleness from the CF outage.** Every trace is from one ~7-minute window on
-  **2026-06-21 14:05**. Since then, every `/analyze`, `/search`, and `/evaluate`
-  fails at the first CF call (quota exhausted), so **no new `rca-generation` /
-  `llm-judge` traces are produced**. The UI's default recent-time window can then
-  look empty.
-- **(b) Orphan spans on failure (a real defect, fixed).** In
-  `vector_search.search_similar` the `xqdrant-search` span was *started before* the
-  embed call; when embed raised (the current 429), `end_observation` was never
-  reached → the span was never ended → an incomplete/dangling observation. Fixed
-  with a `try/except` that ends the span with an `{"error": ...}` output on failure,
-  then re-raises. Regression test: `test_span_is_ended_when_embed_fails`.
-
-**Container logs:** `langfuse-worker` / `langfuse-web` healthy (up 4 days), no
-ingestion errors. `/api/public/health` → `OK`.
-
-**(d) "make one call and watch a trace appear within 10s"** — currently not
-demonstrable live because the only call that would create a trace (`/analyze` →
-`rca-generation`) fails at the CF embed step before any LLM/RCA span is created.
-This will work again the moment the CF budget is available; the delivery path is
-already proven by the 53 existing complete traces.
+A previously-fixed defect (orphan `xqdrant-search` span when the embed call raised)
+also has its regression test (`test_span_is_ended_when_embed_fails`).
 
 ---
 
-## End-to-End Test Results (5 incidents)
+## New issue found & fixed: eval verdicts not persisted to D1
 
-Live `/analyze` on 5 fresh incidents is **blocked by the CF quota** (each
-`/analyze` now returns a clean 503 instead of hanging — Issue 1). Instead, the loop
-is demonstrated two ways that need **no** live CF calls:
+**Finding:** the D1 `eval_verdicts` table exists in `infra/cloudflare/d1-schema.sql`
+(with three indexes) but **no code ever wrote to it** — `eval_verdicts` held 0 rows.
+The reporter returned the verdict inline and filed a Jira issue, but the durable
+record the dashboard's verdict screens are meant to read was never created.
 
-### (a) Recorded artifacts from the 5 target incidents
+**Fix:** new `eval_engine/verdict_store.py` — a best-effort D1 writer that mirrors
+the flight recorder's `storage.d1_client` write side (the same way `cassette_store`
+mirrors its MinIO side, so eval-engine takes no new cross-package dependency). It
+flattens an `EvalVerdict` onto the schema columns (overall_score = mean dimension
+score, attribution step/component, dimensions JSON, etc.), no-ops when D1 env is
+unset, and swallows/logs any error so evaluation never fails. Wired into
+`reporter.evaluate_run` after the verdict is assembled.
 
-All five targets were captured in the 2026-06-21 E2E run. Per-incident evidence
-(MinIO cassette + D1 manifest + D1 trace_records + the recorded RCA draft):
+**Live verification:** after restarting `sentinel-eval`, a fresh `/analyze` (AO-31)
+wrote a row — `eval_verdicts` went **0 → 1**: `verdict=pass, overall_score=0.8625,
+confidence=0.825, flag_for_human=0`. 4 regression tests added
+(`tests/test_verdict_store.py`): row mapping, no-op when unconfigured, INSERT when
+configured, error-swallowing.
 
-| Incident | run_id (hex) | Cassette (MinIO) | D1 manifest | D1 trace_records | Recorded RCA: conf / severity | Runbooks cited |
+---
+
+## End-to-End Test Results (5 incidents, live)
+
+`POST /analyze` on the 5 target incidents, spaced 10 s apart. **All returned HTTP
+200** with a full envelope (`run_id`, `rca_draft`, `similar`, `runbooks`,
+`flag_for_human`, `eval_verdict`, `replay_link`).
+
+| Incident | run_id (hex) | similar | runbook | RCA conf / severity | eval verdict | judge conf |
 |---|---|---|---|---|---|---|
-| AO-11 | `24fbb8e5…` | ✓ 54,615 B | ✓ `completed`, 3 steps | ✓ 3 | 0.90 / critical | **0** |
-| AO-21 | `109d4128…` | ✓ 53,516 B | ✓ `completed`, 3 steps | ✓ 3 | 0.80 / critical | **0** |
-| AO-51 | `aca11b2d…` | ✓ 53,115 B | ✓ `completed`, 3 steps | ✓ 3 | 0.80 / high | **0** |
-| AO-71 | `e76125b6…` | ✓ 52,995 B | ✓ `completed`, 3 steps | ✓ 3 | 0.80 / high | **0** |
-| AO-91 | `e93bb01a…` | ✓ 53,606 B | ✓ `completed`, 3 steps | ✓ 3 | 0.80 / high | **0** |
+| AO-11 | `816cf0e4…` | 5 (0.99–0.76) | **5** (0.72–0.61) | 0.95 / critical | **uncertain** (position-bias flag) | 0.50 |
+| AO-21 | `434ed462…` | 2 (1.00, 0.75) | **5** (0.68–0.62) | 0.90 / critical | **fail** | 1.00 |
+| AO-51 | `b7513f88…` | 2 (1.00, 0.79) | **5** (0.70–0.62) | 0.90 / high | **pass** | 0.89 |
+| AO-71 | `2714289b…` | 1 (1.00) | **2** (0.63, 0.62) | 0.80 / high | **pass** | 0.83 |
+| AO-91 | `621b8784…` | 2 (0.99, 0.75) | **1** (0.65) | 0.90 / high | **pass** | 0.83 |
 
-Each cassette holds 3 `llm_call` records (2 embeds + 1 RCA chat) plus the full
-hash-chained `TraceRecord` list. Example recorded RCA (AO-51): root cause
-*"Insufficient resource allocation for background jobs, leading to CPU contention
-with API servers"*, severity `high`, confidence `0.8`, evidence citing two similar
-incidents. **Every RCA cites 0 runbooks** — Issue 2 visible in real output.
+Diverse verdicts (pass / fail / uncertain) demonstrate the grader pipeline and the
+position-bias calibration (AO-11 flipped → `uncertain` + flag-for-human). **Every
+incident retrieved runbooks** (Issue 2 fixed in the real flow).
 
-Per-incident E2E confirmation matrix:
+### Storage confirmation (per run_id)
 
-| Incident | cassette_confirmed | d1_manifest_confirmed | d1_trace_confirmed | langfuse_confirmed | live_reeval |
-|---|---|---|---|---|---|
-| AO-11 | ✓ | ✓ | ✓ | ✓ (rca-generation traces present) | blocked (CF) |
-| AO-21 | ✓ | ✓ | ✓ | ✓ | blocked (CF) |
-| AO-51 | ✓ | ✓ | ✓ | ✓ | blocked (CF) |
-| AO-71 | ✓ | ✓ | ✓ | ✓ | blocked (CF) |
-| AO-91 | ✓ | ✓ | ✓ | ✓ | blocked (CF) |
+| Check | Result |
+|---|---|
+| MinIO cassette per run_id | **5/5 FOUND** (bucket 14 → 21 objects) |
+| D1 `run_manifests` row | **5/5 present** (13 → 19, +AO-31 → 20) |
+| D1 `trace_records` | **+19** (42 → 61) |
+| D1 `eval_verdicts` row | written for AO-31 (0 → 1) after the persistence fix; the 5 E2E runs predate the eval-engine restart so were not persisted |
+| Langfuse trace per run | **confirmed** — fresh `rca-generation` / `xqdrant-search` / `llm-judge` spans at 15:26–15:39 UTC |
 
-> `eval_verdict` per incident is **not** re-derivable right now (CF judge is down),
-> and was never persisted to D1 `eval_verdicts` — verdicts were filed as AO Jira
-> issues at the time (e.g. AO-104).
-
-### (b) Deterministic replay (UC2) — proves the loop with zero live calls
-
-`POST /replay` re-executes a recorded run against its cassette:
-
-| Incident | run_id | recorded_steps | live_call_count | diverged |
-|---|---|---|---|---|
-| AO-51 | `aca11b2d…` | 2 | **0** | false |
-| AO-71 | `e76125b6…` | 2 | **0** | false |
-| AO-91 | `e93bb01a…` | 2 | **0** | false |
-
-`live_call_count == 0` and `diverged == false` for every replay → the flight
-recorder's record/replay contract holds (zero live API calls, byte-identical
-re-execution).
+> Note: the 5-incident loop ran before the eval-engine was restarted with the new
+> `verdict_store`, so their verdicts were returned inline (and filed as Jira issues)
+> but not written to D1. AO-31, run after the restart, proves the persistence path.
 
 ---
 
 ## pass^k Results (from `make eval`)
 
-`make eval` had **two non-CF bugs that made it fail before doing any work**; both
-are fixed:
-
-1. `get_all_runs()` did `r.json()["runs"]`, but the flight recorder `GET /runs`
-   returns a **bare JSON array** → `TypeError`/`KeyError` on the first line. Fixed
-   to use the list directly (tolerant of both shapes).
-2. `from dotenv import load_dotenv` → `ModuleNotFoundError` (`python-dotenv` is not a
-   workspace dep). Made the import **optional** (the services already have their env
-   via systemd; the script only talks to them over localhost).
-
-After the fixes, `make eval` runs end-to-end and **writes the report**:
+`make eval` (which runs `scripts/run_synthetic_eval.py --k 8`) executes cleanly —
+the two non-CF script bugs fixed in the prior session (the `["runs"]` access on a
+bare-array response, and the hard `dotenv` import) stay fixed. This session ran an
+8-run × k=8 sweep:
 
 ```
 === Sentinel Eval Suite (k=8) ===
-Found 13 recorded runs to evaluate.
-[  1/13] Evaluating run e93bb01a... ERROR: 503 ... /evaluate
+Found 8 recorded runs to evaluate.
+[1/8] 951ca295... ERROR: 503 ... /evaluate
 ...
-[ 13/13] Evaluating run b8dd896d... ERROR: 503 ... /evaluate
+[8/8] e93bb01a... ERROR: 503 ... /evaluate
 === Summary ===  pass@1: 0.0%   pass^8: 0.0%   consistency: 0.0%
 ✓ Report written to docs/eval_report.md
 ```
 
-Every `/evaluate` returns **503** because the safety filter / judge cannot reach CF
-(quota exhausted) → `pass^8 = 0.0%`, 0 tasks scored. This is an **environmental
-block, not a logic failure**: the pipeline now executes cleanly and fails fast (the
-full 13-run sweep finished in seconds instead of hanging for hours, thanks to the
-same quota fail-fast applied to eval-engine's `cf_ai_client`).
+The first trials of run 1 succeeded (200 OK in the eval-engine log), then **the CF
+daily budget ran out mid-sweep** (the E2E had already spent most of it) and every
+subsequent `/evaluate` returned **503** → 0 tasks fully scored. This is the same
+environmental limit, not a logic failure: the pipeline fails fast and the sweep
+finished in seconds. `docs/eval_report.md` was left as the committed template rather
+than overwriting it with a 0-task report.
 
-> `docs/eval_report.md` was **restored to its committed template** rather than
-> committing a 0-task report over it; a meaningful `pass^k` run requires CF budget
-> (≈ 13 runs × 8 trials × {safety + judge×2} CF calls — budget within 10k neurons or
-> a paid plan). The eval-engine `/evaluate` 503-on-CF-failure change has its own
-> regression test (`tests/test_api.py::test_evaluate_maps_upstream_cf_429_to_503`).
+**The real eval evidence is the live single-trial verdicts** captured during the
+E2E before exhaustion — 6 runs (AO-11/21/51/71/91 + AO-31): **4 pass, 1 fail, 1
+uncertain** → single-trial pass rate **4/6 ≈ 67%**. A true `pass^8` needs each task
+evaluated 8× (≈ 8 runs × 8 trials × {safety + judge×2} ≈ 190 CF calls), which
+exceeds what remains of a 10k/day budget after a full E2E — reserve a clean day's
+budget or the Paid plan for it.
 
 ---
 
 ## Tests & Checks
 
-- **130 Python tests pass** (123 baseline + **7 new** regression tests): per-package
-  ruff + `mypy --strict` clean on `eval-engine` and `atlassian-remote`; `check-docs`
-  clean.
-- New tests: `test_post_fails_fast_on_daily_quota_429` (atlassian-remote &
-  eval-engine), `test_search_maps_upstream_cf_429_to_503`,
-  `test_runbooks_use_lower_threshold_than_incidents`,
-  `test_explicit_threshold_overrides_per_collection_default`,
-  `test_span_is_ended_when_embed_fails`,
-  `test_evaluate_maps_upstream_cf_429_to_503`.
-- `make check` (repo-wide lint) still fails **only** on **pre-existing**
-  `scripts/seed_atlassian.py` + `scripts/run_synthetic_eval.py` lint errors
-  (E501/F401/F541/F841) — confirmed identical before and after my edits; documented
-  in the trace-core build notes. The per-package gates (the real bar) are green.
+- **144 Python tests pass** (130 prior baseline + 10 from the pulled drift feature +
+  **4 new** `verdict_store` tests). `eval-engine` ruff + `mypy --strict` clean;
+  `check-docs` clean.
+- New this session: `packages/eval-engine/src/eval_engine/verdict_store.py` +
+  `tests/test_verdict_store.py` (4 tests); conftest now unsets `CF_D1_DATABASE_ID`
+  so the D1 persist deterministically no-ops in tests (no network).
+- `make check` (repo-wide lint) still fails **only** on the **pre-existing**
+  `scripts/seed_atlassian.py` + `scripts/run_synthetic_eval.py` lint errors —
+  unchanged by this work; the per-package gates are green.
 
 ---
 
 ## Recommendations (before demo)
 
-1. **Cloudflare Workers AI budget is the top risk.** The `run` API returns 429
-   `code 4006` ("daily free allocation … 10,000 neurons") for every model, even
-   though the dashboard shows `0/10k` — most likely rolling-window enforcement vs a
-   calendar-day display panel (see the headline). **Action:** re-test after ~14:00
-   UTC (≈24h after yesterday's E2E) to confirm it clears on its own; confirm the
-   dashboard account matches `6a98621e…`; and consider that the deployed token is
-   narrowly scoped (Workers AI run only — no analytics read), so a fresh,
-   appropriately-scoped token is worth trying if it does not clear. For the demo,
-   either move to the Workers Paid plan or **demo from cassettes via deterministic
-   replay** (proven above, zero live calls). The new fail-fast + 503 means a blocked
-   budget now degrades gracefully instead of hanging.
-2. **Ship the runbook threshold fix and re-seed richer runbooks.** The 0.60 runbook
-   floor makes retrieval work today, but the boilerplate runbook content caps
-   incident→runbook cosine at ~0.71. Seeding runbooks with real, distinct remediation
-   content would lift scores and let the floor rise back toward incident parity.
-3. **Persist verdicts to D1 `eval_verdicts`.** The table is empty (0 rows): the
-   reporter only files Jira issues. The dashboard's verdict screens already
-   mock-fallback because there is no `GET /verdicts`; persisting verdicts (and adding
-   the read endpoint) would make those screens live.
+1. **Reserve CF budget for the demo.** The free ~10k neurons/day is consumed by a
+   single full test pass. Either move to the Workers **Paid** plan, or (a) do not run
+   `make eval` / bulk `/analyze` on demo day, and (b) **pre-record cassettes** and
+   demo the deterministic `/replay` path (zero neurons). The budget clears on a
+   rolling ~24h window, so a heavy run today blocks live calls until ~the same time
+   tomorrow.
+2. **Re-seed richer runbook content.** The 0.60 floor makes retrieval work, but the
+   boilerplate runbooks cap incident→runbook cosine at ~0.71. Distinct remediation
+   content would lift scores and let the floor rise toward incident parity.
+3. **Add `GET /verdicts` to eval-engine.** Verdicts now persist to D1
+   (`eval_verdicts`); a read endpoint would let the dashboard's verdict screens go
+   live (they currently mock-fallback). Also backfill: the 5 E2E verdicts were filed
+   as Jira issues but not persisted (they predate the fix).
 4. **Authenticate the public APIs** (open §13 TODO). `eval-engine` (:8000) and
    `flight-recorder` (:8001) still have no auth; `/evaluate` defaults to filing a
    Jira issue. Add the `X-Sentinel-Secret` `Depends` that `atlassian-remote` uses.
-5. **Verify before the demo** that a `cf-ai`-dependent path produces a fresh
-   Langfuse trace once budget is restored (the delivery path is proven; only new
-   data is missing).
+5. **Forge deploy** remains the only major outstanding item for UC3 (CLI not
+   available on the VM — run from a workstation with an Atlassian login).
 
 ---
 
-_Generated 2026-06-22 by Claude Code (Opus 4.8). All fixes have regression tests;
-all three services restarted and healthy with the fixes live._
+_Generated 2026-06-22 by Claude Code (Opus 4.8) on a live re-run after the CF budget
+cleared. All fixes have regression tests; services synced to latest `origin/main`,
+restarted, and healthy with the fixes live._

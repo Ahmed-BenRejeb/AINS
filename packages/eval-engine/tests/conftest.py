@@ -50,3 +50,5 @@ def cf_env(monkeypatch: pytest.MonkeyPatch) -> None:
     # Atlassian intentionally left unconfigured → create_eval_issue() no-ops.
     for key in ("ATLASSIAN_SITE", "ATLASSIAN_EMAIL", "ATLASSIAN_API_TOKEN"):
         monkeypatch.delenv(key, raising=False)
+    # D1 intentionally left unconfigured → persist_verdict() no-ops (no network).
+    monkeypatch.delenv("CF_D1_DATABASE_ID", raising=False)
