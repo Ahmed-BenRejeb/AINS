@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import os
 
+from trace_core import VECTOR_SIMILARITY_THRESHOLD
+
 # ─── Cloudflare Workers AI ─────────────────────────────────────────────────────
 
 
@@ -72,6 +74,54 @@ def incidents_collection() -> str:
 def runbooks_collection() -> str:
     """Collection name for seeded runbooks (``XQDRANT_RUNBOOKS_COLLECTION``)."""
     return os.environ.get("XQDRANT_RUNBOOKS_COLLECTION", _DEFAULT_RUNBOOKS_COLLECTION)
+
+
+# ─── Vector-search relevance thresholds (per collection) ───────────────────────
+#
+# Cosine similarity is structurally asymmetric across our two collections (measured
+# on the live BGE-768 vectors, 2026-06-22):
+#   • incident → incident : top non-self match ~0.76–0.79  (domain-twin phrasing)
+#   • incident → runbook   : top match         ~0.58–0.71  (generic templated pages)
+# A single 0.75 floor (the cross-package ``trace_core`` default) therefore admits
+# similar incidents but silently drops EVERY runbook — which is why ``/analyze``
+# returned 0 runbooks while returning 2–5 similar incidents. We keep the strict
+# floor for incidents and apply a lower, separately-tunable floor for runbooks.
+
+_DEFAULT_RUNBOOK_SIMILARITY_THRESHOLD = 0.60
+"""Relevance floor for the runbooks collection. Below the incident floor (0.75)
+because incident→runbook cosine tops out ~0.71 on the seeded data; the correct
+runbook is reliably the top hit, just under 0.75."""
+
+
+def incident_similarity_threshold() -> float:
+    """Relevance floor for incident search (``VECTOR_SIMILARITY_THRESHOLD`` env).
+
+    Defaults to the cross-package :data:`trace_core.VECTOR_SIMILARITY_THRESHOLD`
+    (0.75); an env override lets operators tune it without a code change (the env
+    knob was previously ignored because the constant was imported, not read).
+    """
+    raw = os.environ.get("VECTOR_SIMILARITY_THRESHOLD")
+    return float(raw) if raw else VECTOR_SIMILARITY_THRESHOLD
+
+
+def runbook_similarity_threshold() -> float:
+    """Relevance floor for runbook search (``RUNBOOK_SIMILARITY_THRESHOLD`` env)."""
+    raw = os.environ.get("RUNBOOK_SIMILARITY_THRESHOLD")
+    return float(raw) if raw else _DEFAULT_RUNBOOK_SIMILARITY_THRESHOLD
+
+
+def similarity_threshold(collection: str) -> float:
+    """Pick the relevance floor for a collection (runbooks lower than incidents).
+
+    Args:
+        collection: xqdrant collection name being searched.
+
+    Returns:
+        The cosine-similarity floor a hit must exceed to count as relevant.
+    """
+    if collection == runbooks_collection():
+        return runbook_similarity_threshold()
+    return incident_similarity_threshold()
 
 
 # ─── Atlassian REST ────────────────────────────────────────────────────────────

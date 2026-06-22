@@ -43,6 +43,42 @@ _SERVER_ERROR_MAX_RETRIES = 2
 _SERVER_ERROR_BACKOFF_SECONDS = 5.0
 
 
+# CF Workers AI returns this error code inside a 429 body when the account's daily
+# free neuron allocation is spent (not a transient burst). Retrying it just burns
+# the 30s backoff budget (90s total) and still fails — and blows the Forge 25s
+# request timeout — so we fail fast on it instead of treating it as transient.
+_CF_DAILY_QUOTA_ERROR_CODE = 4006
+
+
+def _is_quota_exhausted(response: httpx.Response) -> bool:
+    """True if a 429 response is the CF daily-neuron-allocation error (code 4006).
+
+    Args:
+        response: The failed CF Workers AI response (already known to be a 429).
+
+    Returns:
+        ``True`` when the body carries error code 4006 or a "daily free
+        allocation"/"neurons" message — a non-transient quota exhaustion that
+        should fail fast rather than retry.
+    """
+    try:
+        body = response.json()
+    except (ValueError, json.JSONDecodeError):
+        return False
+    errors = body.get("errors") if isinstance(body, dict) else None
+    if not isinstance(errors, list):
+        return False
+    for err in errors:
+        if not isinstance(err, dict):
+            continue
+        if err.get("code") == _CF_DAILY_QUOTA_ERROR_CODE:
+            return True
+        message = str(err.get("message", "")).lower()
+        if "daily free allocation" in message or "neurons" in message:
+            return True
+    return False
+
+
 def _retry_delay(status_code: int, attempt: int) -> float | None:
     """Backoff (seconds) for a retryable CF Workers AI status, or ``None``.
 
@@ -120,6 +156,13 @@ async def _post(model: str, payload: dict[str, Any]) -> dict[str, Any]:
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == _RATE_LIMIT_STATUS and _is_quota_exhausted(exc.response):
+                logger.warning(
+                    "CF Workers AI daily neuron allocation exhausted for model %s; "
+                    "failing fast (no retry)",
+                    model,
+                )
+                raise
             delay = _retry_delay(exc.response.status_code, attempt)
             if delay is None:
                 raise

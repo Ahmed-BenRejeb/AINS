@@ -16,11 +16,13 @@ from __future__ import annotations
 import hmac
 import logging
 
+import httpx
 from atlassian_remote import analyzer, cf_ai_client, vector_search
 from atlassian_remote.config import forge_remote_secret
 from atlassian_remote.langfuse_client import init_langfuse
 from atlassian_remote.models import AnalyzeResult, DuplicateResult
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from trace_core import MAX_RETRIEVAL_RESULTS, SearchResult
 
@@ -30,6 +32,25 @@ app = FastAPI(title="Sentinel Atlassian Remote", version="0.1.0")
 
 # Initialise Langfuse observability at startup (no-op if LANGFUSE_* is unset).
 init_langfuse()
+
+
+@app.exception_handler(httpx.HTTPStatusError)
+async def cf_upstream_error_handler(request: Request, exc: httpx.HTTPStatusError) -> JSONResponse:
+    """Map an upstream CF Workers AI error to a clean 503 instead of a bare 500.
+
+    The embeddings/chat endpoints depend on CF Workers AI. When that returns a 429
+    (rate limit or daily neuron allocation exhausted) or a 5xx, it is an *upstream*
+    dependency failure, not a bug in this service — so the correct status is 503
+    Service Unavailable (retry later), with a descriptive message, rather than an
+    opaque 500. The Forge client already backs off and retries on a non-2xx.
+    """
+    status = exc.response.status_code
+    if status == 429:
+        detail = "CF Workers AI rate limit or daily neuron allocation exhausted; retry later"
+    else:
+        detail = f"upstream CF Workers AI error (status {status}); retry later"
+    logger.warning("upstream CF Workers AI %s on %s: %s", status, request.url.path, detail)
+    return JSONResponse(status_code=503, content={"detail": detail})
 
 
 async def verify_request(request: Request) -> str:

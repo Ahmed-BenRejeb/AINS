@@ -11,18 +11,42 @@ Run locally::
 
 from __future__ import annotations
 
+import logging
+
+import httpx
 from eval_engine.langfuse_client import init_langfuse
 from eval_engine.metrics.pass_at_k import consistency_rate, pass_at_k
 from eval_engine.trace_loader import load_trace
 from eval_engine.verdicts.reporter import evaluate_run
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from trace_core import PASS_AT_K_TRIALS, EvalVerdict, TraceRecord
+
+logger = logging.getLogger("eval_engine.api")
 
 app = FastAPI(title="Sentinel Eval Engine", version="0.1.0")
 
 # Initialise Langfuse observability at startup (no-op if LANGFUSE_* is unset).
 init_langfuse()
+
+
+@app.exception_handler(httpx.HTTPStatusError)
+async def cf_upstream_error_handler(request: Request, exc: httpx.HTTPStatusError) -> JSONResponse:
+    """Map an upstream CF Workers AI error to a clean 503 instead of a bare 500.
+
+    The graders (safety filter, LLM judge) call CF Workers AI. When that returns a
+    429 (rate limit / daily neuron allocation exhausted) or a 5xx, it is an
+    *upstream* dependency failure, not a bug here — so the correct status is 503
+    Service Unavailable (retry later), with a descriptive message, not a 500.
+    """
+    status = exc.response.status_code
+    if status == 429:
+        detail = "CF Workers AI rate limit or daily neuron allocation exhausted; retry later"
+    else:
+        detail = f"upstream CF Workers AI error (status {status}); retry later"
+    logger.warning("upstream CF Workers AI %s on %s: %s", status, request.url.path, detail)
+    return JSONResponse(status_code=503, content={"detail": detail})
 
 
 class EvaluateRequest(BaseModel):

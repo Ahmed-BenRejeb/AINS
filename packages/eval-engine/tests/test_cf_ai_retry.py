@@ -79,3 +79,32 @@ async def test_post_does_not_retry_on_4xx(
 
     assert sleeps == []
     assert len(httpx_mock.get_requests()) == 1
+
+
+async def test_post_fails_fast_on_daily_quota_429(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A 429 with CF code 4006 (daily neurons spent) fails fast — no 30s×3 backoff.
+
+    Without this, `make eval` (k×runs judge calls) hangs ~90s per call against an
+    exhausted free-tier budget before each one finally fails.
+    """
+    sleeps = _patch_sleep(monkeypatch)
+    httpx_mock.add_response(
+        status_code=429,
+        json={
+            "success": False,
+            "errors": [
+                {
+                    "code": 4006,
+                    "message": "you have used up your daily free allocation of 10,000 neurons",
+                }
+            ],
+        },
+    )
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await cf_ai_client.cf_ai_chat([{"role": "user", "content": "judge this"}])
+
+    assert sleeps == []  # no backoff
+    assert len(httpx_mock.get_requests()) == 1  # no retry — failed fast
