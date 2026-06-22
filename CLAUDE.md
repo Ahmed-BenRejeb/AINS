@@ -156,6 +156,12 @@ For local dev, copy `.env.example` to `.env` and fill in values.
 CLOUDFLARE_ACCOUNT_ID=<see /srv/sentinel/.env>
 CLOUDFLARE_API_TOKEN=<in /srv/sentinel/.env>
 
+# Optional: route ONLY Workers AI to a separate account (e.g. a teammate's) for a
+# fresh 10k-neuron/day budget. When set, cf_ai_client uses these; D1/MinIO stay on
+# CLOUDFLARE_* (D1 reads them directly), so the trace store is unaffected. Unset → CLOUDFLARE_*.
+CF_AI_ACCOUNT_ID=
+CF_AI_API_TOKEN=
+
 CF_AI_MODEL_MAIN=@cf/google/gemma-4-26b-a4b-it
 CF_AI_MODEL_SAFETY=@cf/meta/llama-guard-3-8b
 CF_AI_MODEL_EMBED=@cf/baai/bge-base-en-v1.5
