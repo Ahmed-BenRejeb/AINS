@@ -32,12 +32,15 @@ def cf_ai_url() -> str:
 
 
 # Default model ids match root CLAUDE.md Section 0 / .env; env overrides win.
-_DEFAULT_MODEL_MAIN = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+# Gemma 4 26B (a4b) is ~7x cheaper per output neuron than Llama 3.3 70B
+# (27,273 vs 204,805 neurons/M out — CF Workers AI pricing), so it stretches the
+# free 10k-neuron/day budget much further for RCA + judge calls.
+_DEFAULT_MODEL_MAIN = "@cf/google/gemma-4-26b-a4b-it"
 _DEFAULT_MODEL_EMBED = "@cf/baai/bge-base-en-v1.5"
 
 
 def model_main() -> str:
-    """Main RCA model — Llama 3.3 70B (``CF_AI_MODEL_MAIN``)."""
+    """Main RCA model — Gemma 4 26B (``CF_AI_MODEL_MAIN``)."""
     return os.environ.get("CF_AI_MODEL_MAIN", _DEFAULT_MODEL_MAIN)
 
 

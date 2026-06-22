@@ -54,7 +54,7 @@ Everything below is live and running. Use these exact values — do not invent n
 |---|---|
 | D1 database | `sentinel-traces` (ID in `/srv/sentinel/.env`) |
 | Vectorize index | `sentinel-embeddings` (768-dim, cosine) |
-| Workers AI | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (main LLM) |
+| Workers AI | `@cf/google/gemma-4-26b-a4b-it` (main LLM — RCA + judge; ~7x cheaper/neuron than llama-3.3-70b) |
 | Workers AI | `@cf/meta/llama-guard-3-8b` (safety filter) |
 | Workers AI | `@cf/baai/bge-base-en-v1.5` (embeddings) |
 
@@ -156,7 +156,7 @@ For local dev, copy `.env.example` to `.env` and fill in values.
 CLOUDFLARE_ACCOUNT_ID=<see /srv/sentinel/.env>
 CLOUDFLARE_API_TOKEN=<in /srv/sentinel/.env>
 
-CF_AI_MODEL_MAIN=@cf/meta/llama-3.3-70b-instruct-fp8-fast
+CF_AI_MODEL_MAIN=@cf/google/gemma-4-26b-a4b-it
 CF_AI_MODEL_SAFETY=@cf/meta/llama-guard-3-8b
 CF_AI_MODEL_EMBED=@cf/baai/bge-base-en-v1.5
 
@@ -240,7 +240,7 @@ All LLM calls go through:
 
 | Use | Model | Notes |
 |---|---|---|
-| Main LLM (RCA, eval judge) | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | Free 10k neurons/day |
+| Main LLM (RCA, eval judge) | `@cf/google/gemma-4-26b-a4b-it` | 9,091/27,273 neurons per M in/out — ~7x cheaper than llama-3.3-70b (was the default); stretches the free 10k/day |
 | Safety pre-filter | `@cf/meta/llama-guard-3-8b` | Fast, cheap |
 | Embeddings (768-dim) | `@cf/baai/bge-base-en-v1.5` | For xqdrant + drift |
 
