@@ -155,3 +155,21 @@ def save_to_cassette(
     if record is not None:
         cassette.setdefault("records", []).append(record)
     minio_client.store_blob(_cassette_key(run_id), canonical_json(cassette).encode("utf-8"))
+
+
+def append_record(run_id: str, record: dict[str, Any]) -> None:
+    """Append a semantic ``TraceRecord`` to a run's cassette without a replay step.
+
+    For logical workflow steps that are not a replayable HTTP call (e.g. a vector
+    search whose embedding was already taped as its own step): the record joins the
+    non-lossy ``records`` trace the eval engine and dashboard read, but is **not**
+    added to ``steps``/``order``, so replay and bisect (which key off the recorded
+    HTTP requests) are unaffected.
+
+    Args:
+        run_id: UUID of the run.
+        record: The step's full :class:`~trace_core.TraceRecord` (JSON-mode dict).
+    """
+    cassette = load_cassette(run_id)
+    cassette.setdefault("records", []).append(record)
+    minio_client.store_blob(_cassette_key(run_id), canonical_json(cassette).encode("utf-8"))

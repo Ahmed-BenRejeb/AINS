@@ -100,10 +100,25 @@ async def test_analyze_incident_orchestrates_pipeline(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(AtlassianClient, "get_issue", fake_get_issue)
 
-    async def fake_search(_query: str, collection: str, k: int = 5) -> list[SearchResult]:
+    async def fake_embed(_text: str) -> list[float]:
+        return [0.1] * 8
+
+    monkeypatch.setattr(vector_search, "cf_ai_embed_query", fake_embed)
+
+    async def fake_search(
+        _query: str, collection: str, k: int = 5, embedding: list[float] | None = None
+    ) -> list[SearchResult]:
         return [_hit()] if collection == "incidents" else []
 
     monkeypatch.setattr(vector_search, "search_similar", fake_search)
+
+    # Capture the tool-call records the analyzer tapes for each retrieval.
+    tool_calls: list[str] = []
+    monkeypatch.setattr(
+        recording.RunRecorder,
+        "record_tool_call",
+        lambda _self, **kw: tool_calls.append(str(kw.get("arguments", {}).get("collection"))),
+    )
 
     async def fake_generate(
         _text: str, _similar: list[SearchResult], _runbooks: list[SearchResult]
@@ -137,7 +152,9 @@ async def test_analyze_incident_orchestrates_pipeline(monkeypatch: pytest.Monkey
     assert manifests and manifests[0]["task_id"] == "AO-1"
     assert result.eval_verdict is not None
     assert result.eval_verdict.verdict == "pass"
-    assert result.replay_link == "https://flight.ahmedxsaad.me/runs/run-test-123"
+    assert result.replay_link == "https://dashboard.ahmedxsaad.me/replay/run-test-123"
+    # Both retrievals were taped as tool_call steps (incidents + runbooks).
+    assert tool_calls == ["incidents", "runbooks"]
 
 
 async def test_resolve_incident_duplicate_orchestrates_pipeline(

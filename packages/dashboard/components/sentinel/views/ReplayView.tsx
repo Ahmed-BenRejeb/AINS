@@ -36,7 +36,7 @@ export function ReplayView({
   const [replayLoading, setReplayLoading] = useState(false);
 
   const [goodRun, setGoodRun] = useState(runId);
-  const [badRun, setBadRun] = useState(runId);
+  const [badRun, setBadRun] = useState("");
   const [bisect, setBisect] = useState<Loaded<BisectResult> | null>(null);
   const [bisectLoading, setBisectLoading] = useState(false);
 
@@ -126,7 +126,9 @@ export function ReplayView({
         <CardContent className="space-y-4">
           <p className="text-sm leading-relaxed text-muted-foreground">
             Compare a known-good run against a known-bad one to find the first diverging step.
-            Regression triage for agent behaviour.
+            Regression triage for agent behaviour. Paste{" "}
+            <span className="font-medium text-foreground">two different run ids</span> (the same id
+            on both sides is always identical).
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1.5">
@@ -148,7 +150,8 @@ export function ReplayView({
                 value={badRun}
                 onChange={(e) => setBadRun(e.target.value)}
                 spellCheck={false}
-                className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-white/25"
+                placeholder="paste a different run id"
+                className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-white/25"
               />
             </label>
           </div>
@@ -246,6 +249,13 @@ function ReplayResultPanel({ result }: { result: Loaded<ReplayResult> }) {
   );
 }
 
+/** Pretty-print a step output, capped so a 768-dim embedding vector can't flood the UI. */
+function previewOutput(output: unknown): string {
+  const json = JSON.stringify(output, null, 2);
+  if (json === undefined) return "-";
+  return json.length > 600 ? `${json.slice(0, 600)}\n… (truncated)` : json;
+}
+
 function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
   const b = result.data;
   return (
@@ -264,8 +274,8 @@ function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
               <div className="mt-1 font-mono text-xs text-muted-foreground">
                 {truncateId(b.good_run_id, 12)} · {b.good_step_key ?? "-"}
               </div>
-              <pre className="mt-1 overflow-x-auto rounded bg-white/[0.03] p-2 font-mono text-[11px] text-foreground/80">
-                {JSON.stringify(b.good_output, null, 2)}
+              <pre className="mt-1 max-h-48 overflow-auto rounded bg-white/[0.03] p-2 font-mono text-[11px] text-foreground/80">
+                {previewOutput(b.good_output)}
               </pre>
             </div>
             <div>
@@ -273,8 +283,8 @@ function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
               <div className="mt-1 font-mono text-xs text-muted-foreground">
                 {truncateId(b.bad_run_id, 12)} · {b.bad_step_key ?? "-"}
               </div>
-              <pre className="mt-1 overflow-x-auto rounded bg-white/[0.03] p-2 font-mono text-[11px] text-foreground/80">
-                {JSON.stringify(b.bad_output, null, 2)}
+              <pre className="mt-1 max-h-48 overflow-auto rounded bg-white/[0.03] p-2 font-mono text-[11px] text-foreground/80">
+                {previewOutput(b.bad_output)}
               </pre>
             </div>
           </div>

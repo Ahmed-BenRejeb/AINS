@@ -44,7 +44,7 @@ async def test_passing_trace_yields_pass_verdict(
     assert verdict.verdict == "pass"
     assert verdict.failure_attribution is None
     assert verdict.self_evaluation is not None
-    assert verdict.replay_link.endswith("/runs/run-pass-0001")
+    assert verdict.replay_link.endswith("/replay/run-pass-0001")
 
 
 async def test_failing_trace_attributes_to_retrieval_step2(

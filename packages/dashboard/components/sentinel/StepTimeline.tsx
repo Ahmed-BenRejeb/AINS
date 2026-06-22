@@ -9,6 +9,7 @@ import {
   ArrowRight,
   Binary,
   MessagesSquare,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 import { motion, staggerContainer, staggerItem } from "./motion";
@@ -26,6 +27,11 @@ const KIND_META: Record<string, { label: string; Icon: LucideIcon; className: st
     label: "llm chat",
     Icon: MessagesSquare,
     className: "border-violet-500/30 bg-violet-500/10 text-violet-300",
+  },
+  retrieval: {
+    label: "vector search",
+    Icon: Search,
+    className: "border-sky-500/30 bg-sky-500/10 text-sky-300",
   },
   // kind-level (fallback)
   llm_call: {
@@ -94,7 +100,9 @@ export function StepTimeline({ trace }: { trace: TraceRecordRow[] }) {
     <motion.ol variants={staggerContainer} initial="hidden" animate="show" className="relative">
       {steps.map((step, i) => {
         const meta = parseMeta(step.metadata_json);
-        const badgeKey = meta.operation ?? String(step.kind);
+        // Prefer the operation label when it's a known badge; else fall back to kind.
+        const badgeKey =
+          meta.operation && meta.operation in KIND_META ? meta.operation : String(step.kind);
         const model = shortModel(meta.model_id);
         return (
           <motion.li key={step.id ?? i} variants={staggerItem} className="relative flex gap-4 pb-6 last:pb-0">
