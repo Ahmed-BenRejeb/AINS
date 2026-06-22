@@ -6,11 +6,24 @@
 > **Headline:** Three real code/script defects found and fixed (with regression
 > tests); the platform's recording → replay loop verified working end-to-end with
 > **zero live calls**; Langfuse tracing confirmed working (53 complete traces).
-> **One hard environmental blocker dominates this run: the Cloudflare Workers AI
-> free-tier daily neuron allocation is exhausted** (error code 4006, HTTP 429), so
-> every *live* embedding/LLM/judge call currently fails. The task brief assumed
-> "0/10k, just reset" — that is not the live state; the free allocation behaves as a
-> rolling window and was still spent at 00:29 UTC, 29 min after midnight.
+>
+> **One environmental blocker dominates this run: the Cloudflare Workers AI `run`
+> API returns HTTP 429 `code 4006` ("you have used up your daily free allocation of
+> 10,000 neurons") for *every* active model**, so every live embedding/LLM/judge
+> call currently fails. **Unresolved discrepancy:** the Cloudflare **dashboard shows
+> `Neurons used today: 0/10k` (resets 00:00 UTC)**, which disagrees with the
+> gateway's 4006. Verified: the API token is valid/active and sees **only** the
+> correct account (`6a98621e…`); a deprecated model returns a *different* error
+> (410), proving requests reach the AI layer (not an auth/wrong-account problem);
+> the token lacks analytics-read scope, so CF's authoritative usage can't be queried
+> from here to settle which side is stale. **Leading explanation:** the free
+> allocation is enforced on a **rolling ~24h window** at the gateway, while the
+> dashboard panel is a **calendar-day display** that zeroed at 00:00 UTC — yesterday's
+> E2E ran ~14:00 UTC, so a rolling window would not clear until ~14:00 UTC today
+> (consistent with it still being blocked at 00:29 and 01:41 UTC). Whatever the
+> cause, live calls fail **now**; the code fixes below make that failure graceful
+> (fail-fast + 503) instead of a 90s hang. **Re-test after ~14:00 UTC**, or demo
+> from cassettes via deterministic `/replay` (zero neurons).
 
 ---
 
@@ -343,13 +356,17 @@ same quota fail-fast applied to eval-engine's `cf_ai_client`).
 
 ## Recommendations (before demo)
 
-1. **Cloudflare Workers AI budget is the top risk.** The free 10k-neuron/day
-   allocation was already exhausted at 00:29 UTC and behaves as a rolling window,
-   not a clean midnight reset. For the demo, either (a) move to the Workers Paid
-   plan, or (b) **demo from cassettes via deterministic replay** (proven above, zero
-   live calls) and pre-warm any live `/analyze` well inside budget. The new
-   fail-fast + 503 means a depleted budget now degrades gracefully instead of
-   hanging.
+1. **Cloudflare Workers AI budget is the top risk.** The `run` API returns 429
+   `code 4006` ("daily free allocation … 10,000 neurons") for every model, even
+   though the dashboard shows `0/10k` — most likely rolling-window enforcement vs a
+   calendar-day display panel (see the headline). **Action:** re-test after ~14:00
+   UTC (≈24h after yesterday's E2E) to confirm it clears on its own; confirm the
+   dashboard account matches `6a98621e…`; and consider that the deployed token is
+   narrowly scoped (Workers AI run only — no analytics read), so a fresh,
+   appropriately-scoped token is worth trying if it does not clear. For the demo,
+   either move to the Workers Paid plan or **demo from cassettes via deterministic
+   replay** (proven above, zero live calls). The new fail-fast + 503 means a blocked
+   budget now degrades gracefully instead of hanging.
 2. **Ship the runbook threshold fix and re-seed richer runbooks.** The 0.60 runbook
    floor makes retrieval work today, but the boilerplate runbook content caps
    incident→runbook cosine at ~0.71. Seeding runbooks with real, distinct remediation
