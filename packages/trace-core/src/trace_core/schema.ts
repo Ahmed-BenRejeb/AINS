@@ -155,6 +155,36 @@ export interface EvalVerdict {
   recommended_action: string;
 }
 
+/** mirrors schema.py: DriftReport */
+export interface DriftReport {
+  /** Number of runs in the baseline window. */
+  baseline_run_count: number;
+  /** Number of runs in the current window. */
+  current_run_count: number;
+  /** Fraction of baseline runs whose verdict was "pass". */
+  pass_rate_baseline: number;
+  /** Fraction of current runs whose verdict was "pass". */
+  pass_rate_current: number;
+  /** pass_rate_current - pass_rate_baseline (negative = regression). */
+  pass_rate_delta: number;
+  /** Mean rubric-dimension score across the baseline runs. */
+  mean_score_baseline: number;
+  /** Mean rubric-dimension score across the current runs. */
+  mean_score_current: number;
+  /** Per-dimension mean-score change (current - baseline), keyed by dimension. */
+  dimension_deltas: Record<string, number>;
+  /** Dimension with the largest absolute score change (null if no dimensions). */
+  most_shifted_dimension: string | null;
+  /** Cosine distance between baseline/current output-embedding centroids (null when no text). */
+  semantic_drift: number | null;
+  /** True when any signal crosses its drift threshold. */
+  drift_detected: boolean;
+  /** Overall drift magnitude in [0, 1] (max of the signals). */
+  drift_score: number;
+  /** Human-readable explanation of what shifted and by how much. */
+  summary: string;
+}
+
 // ─── Retrieval & explainability (xqdrant) ──────────────────────────────────────
 
 /** mirrors schema.py: Attribution */

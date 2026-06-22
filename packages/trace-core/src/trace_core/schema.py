@@ -209,6 +209,59 @@ class EvalVerdict(BaseModel):
     )
 
 
+class DriftReport(BaseModel):
+    """Behavioural-drift comparison between a baseline and a current set of runs.
+
+    Implements the UC1 drift-detection capability (official brief §2.3): compare
+    evaluation results across runs over time and detect meaningful shifts in agent
+    behaviour, tool usage, or output characteristics. Two complementary signals are
+    combined — verdict/score drift (from :class:`EvalVerdict` aggregates) and
+    semantic drift of the agents' output text (BGE-embedding centroid distance) —
+    so a regression is caught whether or not the pass/fail outcome moved (brief
+    Scenario B: "longer, less structured summaries after a model update"). Every
+    field is human-readable so a non-AI engineer can act on the ``summary``.
+    """
+
+    baseline_run_count: int = Field(ge=0, description="Number of runs in the baseline window.")
+    current_run_count: int = Field(ge=0, description="Number of runs in the current window.")
+    pass_rate_baseline: float = Field(
+        ge=0.0, le=1.0, description="Fraction of baseline runs whose verdict was 'pass'."
+    )
+    pass_rate_current: float = Field(
+        ge=0.0, le=1.0, description="Fraction of current runs whose verdict was 'pass'."
+    )
+    pass_rate_delta: float = Field(
+        description="pass_rate_current - pass_rate_baseline (negative = regression)."
+    )
+    mean_score_baseline: float = Field(
+        ge=0.0, le=1.0, description="Mean rubric-dimension score across the baseline runs."
+    )
+    mean_score_current: float = Field(
+        ge=0.0, le=1.0, description="Mean rubric-dimension score across the current runs."
+    )
+    dimension_deltas: dict[str, float] = Field(
+        description="Per-dimension mean-score change (current - baseline), keyed by dimension.",
+    )
+    most_shifted_dimension: str | None = Field(
+        default=None,
+        description="Dimension with the largest absolute score change (None if no dimensions).",
+    )
+    semantic_drift: float | None = Field(
+        default=None,
+        description="Cosine distance between baseline/current output-embedding centroids "
+        "(0 = identical, higher = more drift); None when no output text was supplied.",
+    )
+    drift_detected: bool = Field(
+        description="True when any signal crosses its drift threshold.",
+    )
+    drift_score: float = Field(
+        ge=0.0, le=1.0, description="Overall drift magnitude in [0, 1] (max of the signals)."
+    )
+    summary: str = Field(
+        description="Human-readable explanation of what shifted and by how much.",
+    )
+
+
 # ─── Retrieval & explainability (xqdrant) ──────────────────────────────────────
 
 
