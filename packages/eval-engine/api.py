@@ -11,13 +11,14 @@ Run locally::
 
 from __future__ import annotations
 
+from eval_engine.drift.detector import detect_drift
 from eval_engine.langfuse_client import init_langfuse
 from eval_engine.metrics.pass_at_k import consistency_rate, pass_at_k
 from eval_engine.trace_loader import load_trace
 from eval_engine.verdicts.reporter import evaluate_run
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from trace_core import PASS_AT_K_TRIALS, EvalVerdict, TraceRecord
+from trace_core import PASS_AT_K_TRIALS, DriftReport, EvalVerdict, TraceRecord
 
 app = FastAPI(title="Sentinel Eval Engine", version="0.1.0")
 
@@ -49,6 +50,21 @@ class BatchResult(BaseModel):
     verdicts: list[EvalVerdict] = Field(description="One verdict per run, in input order.")
     pass_hat_k: float = Field(description="1.0 only if all k trials passed, else 0.0.")
     consistency_rate: float = Field(description="Average passing rate across trials.")
+
+
+class DriftRequest(BaseModel):
+    """Body for ``POST /drift``: a baseline window vs a current window of verdicts."""
+
+    baseline: list[EvalVerdict] = Field(description="Verdicts from the reference window.")
+    current: list[EvalVerdict] = Field(description="Verdicts from the window under test.")
+    baseline_outputs: list[str] | None = Field(
+        default=None,
+        description="Optional agent output texts for the baseline window (enables semantic drift).",
+    )
+    current_outputs: list[str] | None = Field(
+        default=None,
+        description="Optional agent output texts for the current window (enables semantic drift).",
+    )
 
 
 async def _resolve_records(request: EvaluateRequest) -> list[TraceRecord]:
@@ -83,4 +99,15 @@ async def evaluate_batch(request: BatchRequest) -> BatchResult:
         verdicts=verdicts,
         pass_hat_k=pass_at_k(results, request.k),
         consistency_rate=consistency_rate(results),
+    )
+
+
+@app.post("/drift")
+async def drift(request: DriftRequest) -> DriftReport:
+    """Detect behavioural drift between a baseline and a current window of runs."""
+    return await detect_drift(
+        request.baseline,
+        request.current,
+        baseline_outputs=request.baseline_outputs,
+        current_outputs=request.current_outputs,
     )
