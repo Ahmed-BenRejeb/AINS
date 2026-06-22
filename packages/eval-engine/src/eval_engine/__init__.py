@@ -11,6 +11,7 @@ come from ``trace_core`` and are never redefined here.
 
 from __future__ import annotations
 
+from .drift.detector import detect_drift
 from .graders import code_grader
 from .graders.llm_judge import calibrated_judge, judge
 from .graders.safety_filter import check_safety
@@ -26,6 +27,7 @@ __all__ = [
     "check_safety",
     "code_grader",
     "consistency_rate",
+    "detect_drift",
     "evaluate_run",
     "judge",
     "pass_at_k",

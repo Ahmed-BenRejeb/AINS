@@ -79,6 +79,32 @@ enforced when steps report ``usage.total_tokens``; absent usage is not penalised
 MAX_REPEATED_STEPS = 3
 """Number of identical consecutive steps that counts as a loop (loop detection)."""
 
+# ─── Drift detection (UC1 §2.3) ────────────────────────────────────────────────
+
+DRIFT_PASS_RATE_DELTA_THRESHOLD = 0.2
+"""Absolute pass-rate change between baseline and current that counts as drift.
+
+Origin: UC1 acceptance criterion "detect meaningful shifts ... across runs over
+time" (official brief §2.3). A 20-percentage-point swing in pass rate is a clear
+behavioural regression/improvement worth surfacing, not trial-to-trial noise.
+"""
+
+DRIFT_DIMENSION_DELTA_THRESHOLD = 0.15
+"""Absolute mean change in any single rubric dimension that counts as drift.
+
+Origin: UC1 §2.3 + the judge rubric (``JUDGE_DIMENSIONS``). Catches a quality shift
+isolated to one dimension (e.g. reasoning_quality) even when the overall pass/fail
+outcome has not moved — brief Scenario B.
+"""
+
+DRIFT_SEMANTIC_DISTANCE_THRESHOLD = 0.15
+"""Output-embedding centroid cosine distance that counts as semantic drift.
+
+Origin: UC1 §2.3 "output characteristics". BGE (768-dim) embeddings of the agents'
+output text are averaged per window; a centroid cosine distance at/above this means
+the *shape* of outputs changed (length, structure, topic) even with no score change.
+"""
+
 # ─── Atlassian (verdict → Jira issue) ──────────────────────────────────────────
 
 INCIDENT_ISSUE_TYPE_ID = "10013"

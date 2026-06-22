@@ -18,6 +18,7 @@ from trace_core import (
     Attribution,
     AuditBlock,
     DimensionScore,
+    DriftReport,
     DuplicateVerdict,
     EvalVerdict,
     FailureAttribution,
@@ -145,6 +146,25 @@ def _duplicate_verdict() -> DuplicateVerdict:
     )
 
 
+def _drift_report() -> DriftReport:
+    return DriftReport(
+        baseline_run_count=8,
+        current_run_count=8,
+        pass_rate_baseline=0.875,
+        pass_rate_current=0.5,
+        pass_rate_delta=-0.375,
+        mean_score_baseline=0.82,
+        mean_score_current=0.61,
+        dimension_deltas={"correctness": -0.3, "efficiency": -0.05},
+        most_shifted_dimension="correctness",
+        semantic_drift=0.22,
+        drift_detected=True,
+        drift_score=0.375,
+        summary="Drift detected: pass rate 88% → 50% (-38%); largest dimension shift: "
+        "correctness -0.30; output semantic drift 0.22.",
+    )
+
+
 _ALL_INSTANCES: list[BaseModel] = [
     _step_metadata(),
     _audit_block(),
@@ -158,6 +178,7 @@ _ALL_INSTANCES: list[BaseModel] = [
     _search_result(),
     _rca_draft(),
     _duplicate_verdict(),
+    _drift_report(),
 ]
 
 
@@ -195,6 +216,14 @@ def test_duplicate_verdict_allows_null_target() -> None:
     restored = DuplicateVerdict.model_validate_json(verdict.model_dump_json())
     assert restored.duplicate_of is None
     assert restored.is_duplicate is False
+
+
+def test_drift_report_allows_null_semantic_drift() -> None:
+    """semantic_drift is optional (None when no output text was supplied)."""
+    report = _drift_report().model_copy(update={"semantic_drift": None})
+    restored = DriftReport.model_validate_json(report.model_dump_json())
+    assert restored.semantic_drift is None
+    assert restored.drift_detected is True
 
 
 def test_eval_verdict_passes_with_no_attribution() -> None:
