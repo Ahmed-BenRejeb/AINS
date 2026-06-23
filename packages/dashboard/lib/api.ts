@@ -18,6 +18,8 @@
 
 import {
   mockBisect,
+  mockDrift,
+  mockEvaluatorQuality,
   mockReplay,
   mockRunDetail,
   mockRuns,
@@ -27,7 +29,9 @@ import {
 } from "./mock-data";
 import type {
   BisectResult,
+  DriftReport,
   EvalVerdict,
+  EvaluatorQuality,
   Loaded,
   OverviewStats,
   ReplayResult,
@@ -211,6 +215,39 @@ export async function getOverview(useMock: boolean): Promise<Loaded<Overview>> {
   };
   const source = runs.source === "live" && verdicts.source === "live" ? "live" : "mock-fallback";
   return { data: { stats, summaries }, source, error: verdicts.error ?? runs.error };
+}
+
+// ─── Reliability over time (UC1 §2.3 / §2.4) ───────────────────────────────────
+// drift + evaluator-quality are computed on-demand (POST /drift,
+// POST /evaluator-quality), so there is no standing GET resource. As with the
+// verdict accessors above, we optimistically try a GET so the panels light up
+// automatically if a "latest" endpoint is ever added, and otherwise fall back to
+// the representative fixtures (the header badge shows mock vs live honestly).
+
+/** Latest behavioural-drift report (`GET /drift/latest`, else fixture). */
+export async function getDrift(useMock: boolean): Promise<Loaded<DriftReport>> {
+  if (useMock) return mock(mockDrift);
+  try {
+    const report = await fetchJson<DriftReport>(`${EVAL_ENGINE_API}/drift/latest`);
+    return live(report);
+  } catch (err) {
+    return fallback(mockDrift, err);
+  }
+}
+
+/** Latest evaluator-quality report (`GET /evaluator-quality/latest`, else fixture). */
+export async function getEvaluatorQuality(
+  useMock: boolean,
+): Promise<Loaded<EvaluatorQuality>> {
+  if (useMock) return mock(mockEvaluatorQuality);
+  try {
+    const report = await fetchJson<EvaluatorQuality>(
+      `${EVAL_ENGINE_API}/evaluator-quality/latest`,
+    );
+    return live(report);
+  } catch (err) {
+    return fallback(mockEvaluatorQuality, err);
+  }
 }
 
 // ─── Replay / bisect (POST) ────────────────────────────────────────────────────

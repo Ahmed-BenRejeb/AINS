@@ -125,9 +125,125 @@ def evaluate_run(run_id: str, k: int) -> list[dict]:
     return verdicts
 
 
+def fetch_drift(baseline: list[dict], current: list[dict]) -> dict | None:
+    """Ask the eval engine to compare two windows of verdicts (UC1 §2.3).
+
+    Returns the ``DriftReport`` JSON, or ``None`` if the endpoint is unavailable or
+    there is not enough data — the report degrades to a note rather than failing.
+    """
+    if not baseline or not current:
+        return None
+    try:
+        r = requests.post(f"{EVAL_API}/drift", json={"baseline": baseline, "current": current})
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return None
+
+
+def _cohen_kappa(predicted: list[str], gold: list[str]) -> float:
+    """Chance-corrected agreement between predicted and gold verdicts (self-contained)."""
+    n = len(gold)
+    if n == 0:
+        return 0.0
+    observed = sum(p == g for p, g in zip(predicted, gold, strict=True)) / n
+    labels = set(predicted) | set(gold)
+    expected = sum((predicted.count(label) / n) * (gold.count(label) / n) for label in labels)
+    if expected == 1.0:
+        return 1.0
+    return (observed - expected) / (1.0 - expected)
+
+
+def compute_evaluator_quality(
+    run_results: list[RunResult], gold_map: dict[str, str]
+) -> dict | None:
+    """Score the evaluator against human gold labels (UC1 §2.4).
+
+    ``gold_map`` maps a ``run_id`` or ``task_id`` to its expected verdict. The
+    evaluator's first-trial verdict is compared to the gold label; returns accuracy
+    and Cohen's κ, or ``None`` when no run could be matched to a gold label.
+    """
+    predicted: list[str] = []
+    gold: list[str] = []
+    for r in run_results:
+        expected = gold_map.get(r.run_id) or gold_map.get(r.task_id)
+        if not expected or not r.trials:
+            continue
+        predicted.append(r.trials[0].get("verdict", "uncertain"))
+        gold.append(expected)
+    if not gold:
+        return None
+    agreements = sum(p == g for p, g in zip(predicted, gold, strict=True))
+    return {
+        "n_cases": len(gold),
+        "n_agreements": agreements,
+        "accuracy": agreements / len(gold),
+        "cohen_kappa": _cohen_kappa(predicted, gold),
+    }
+
+
 # ── Report Generator ──────────────────────────────────────────────────────────
 
-def generate_report(report: EvalReport, k: int, output_path: str) -> None:
+def _drift_section(drift: dict | None) -> list[str]:
+    """Render the behavioural-drift section (UC1 §2.3)."""
+    lines = ["## Behavioural Drift (baseline vs current)", ""]
+    if not drift:
+        lines += [
+            "_Not enough data: drift compares two windows of evaluated runs via the eval",
+            "engine `POST /drift`. Re-run with more recorded runs (and the service up)._",
+            "",
+        ]
+        return lines
+    sem = drift.get("semantic_drift")
+    lines += [
+        "| Signal | Value |",
+        "|---|---|",
+        f"| Drift detected | {'YES' if drift.get('drift_detected') else 'no'} |",
+        f"| Pass rate (baseline -> current) | {drift.get('pass_rate_baseline', 0):.0%}"
+        f" -> {drift.get('pass_rate_current', 0):.0%} ({drift.get('pass_rate_delta', 0):+.0%}) |",
+        f"| Most shifted dimension | {drift.get('most_shifted_dimension') or 'n/a'} |",
+        f"| Semantic output drift | {'n/a' if sem is None else f'{sem:.2f}'} |",
+        f"| Drift score | {drift.get('drift_score', 0):.2f} |",
+        "",
+        f"> {drift.get('summary', '')}",
+        "",
+    ]
+    return lines
+
+
+def _evaluator_quality_section(quality: dict | None) -> list[str]:
+    """Render the evaluation-of-the-evaluator section (UC1 §2.4)."""
+    lines = ["## Evaluation of the Evaluator (judge vs human)", ""]
+    if not quality:
+        lines += [
+            "_No gold labels supplied. Pass `--gold <file.json>` mapping each `run_id` or",
+            "`task_id` to its human verdict (pass/fail/uncertain) to report judge-vs-human",
+            "agreement (accuracy + Cohen's kappa)._",
+            "",
+        ]
+        return lines
+    lines += [
+        "| Metric | Value |",
+        "|---|---|",
+        f"| Gold cases | {quality['n_cases']} |",
+        f"| Agreements | {quality['n_agreements']}/{quality['n_cases']} |",
+        f"| Accuracy | {quality['accuracy']:.1%} |",
+        f"| **Cohen's kappa** (chance-corrected) | **{quality['cohen_kappa']:.2f}** |",
+        "",
+        "> Cohen's kappa is the headline: it corrects for chance agreement, so a judge",
+        "> that always returns one verdict cannot score well on an imbalanced gold set.",
+        "",
+    ]
+    return lines
+
+
+def generate_report(
+    report: EvalReport,
+    k: int,
+    output_path: str,
+    drift: dict | None = None,
+    evaluator_quality: dict | None = None,
+) -> None:
     """Write the evaluation report to a Markdown file."""
     lines = [
         "# Sentinel — Evaluation Report",
@@ -186,6 +302,14 @@ def generate_report(report: EvalReport, k: int, output_path: str) -> None:
         "",
         "---",
         "",
+    ]
+
+    lines += _drift_section(drift)
+    lines += ["---", ""]
+    lines += _evaluator_quality_section(evaluator_quality)
+    lines += [
+        "---",
+        "",
         f"_Generated by scripts/run_synthetic_eval.py · Sentinel_",
     ]
 
@@ -202,7 +326,16 @@ def main() -> None:
     parser.add_argument("--k",      type=int, default=8,           help="Number of trials per task")
     parser.add_argument("--output", type=str, default=REPORT_PATH, help="Output report path")
     parser.add_argument("--limit",  type=int, default=None,        help="Limit number of runs (for testing)")
+    parser.add_argument("--gold", type=str, default=None, help="JSON: run_id/task_id -> verdict")
     args = parser.parse_args()
+
+    gold_map: dict[str, str] = {}
+    if args.gold:
+        try:
+            with open(args.gold) as f:
+                gold_map = json.load(f)
+        except (OSError, ValueError) as e:
+            print(f"WARN: could not read --gold {args.gold}: {e}")
 
     print(f"=== Sentinel Eval Suite (k={args.k}) ===")
     print(f"Eval API:   {EVAL_API}")
@@ -255,7 +388,16 @@ def main() -> None:
     print(f"  pass^{args.k}:  {report.pass_at_k_rate:.1%}")
     print(f"  consistency: {report.consistency_rate:.1%}")
 
-    generate_report(report, args.k, args.output)
+    # Drift: split the evaluated runs into a baseline (older half) vs current (newer
+    # half) window and compare their first-trial verdicts via the eval engine.
+    first_trials = [r.trials[0] for r in report.run_results if r.trials]
+    mid = len(first_trials) // 2
+    drift = fetch_drift(first_trials[:mid], first_trials[mid:]) if mid else None
+
+    # Evaluator quality: score the judge against human gold labels, if supplied.
+    evaluator_quality = compute_evaluator_quality(report.run_results, gold_map)
+
+    generate_report(report, args.k, args.output, drift, evaluator_quality)
 
 
 if __name__ == "__main__":

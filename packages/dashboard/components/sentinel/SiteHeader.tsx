@@ -10,6 +10,7 @@ import { cn, withMock } from "@/lib/utils";
 const NAV = [
   { href: "/", label: "Overview" },
   { href: "/runs", label: "Runs" },
+  { href: "/reliability", label: "Reliability" },
 ];
 
 /**

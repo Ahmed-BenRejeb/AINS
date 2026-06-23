@@ -11,7 +11,9 @@
 import type {
   AnalyzeResult,
   BisectResult,
+  DriftReport,
   EvalVerdict,
+  EvaluatorQuality,
   OverviewStats,
   ReplayResult,
   RunDetail,
@@ -33,6 +35,51 @@ const RUN_IDS = {
 function isoMinutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
 }
+
+// ─── Behavioural drift (POST /drift) ───────────────────────────────────────────
+// A regression caught across two windows of 8 runs: pass rate fell and the
+// correctness dimension shifted most, with a measurable output-shape change.
+
+export const mockDrift: DriftReport = {
+  baseline_run_count: 8,
+  current_run_count: 8,
+  pass_rate_baseline: 0.875,
+  pass_rate_current: 0.625,
+  pass_rate_delta: -0.25,
+  mean_score_baseline: 0.86,
+  mean_score_current: 0.71,
+  dimension_deltas: {
+    correctness: -0.22,
+    efficiency: -0.04,
+    safety: -0.01,
+    reasoning_quality: -0.15,
+  },
+  most_shifted_dimension: "correctness",
+  semantic_drift: 0.18,
+  drift_detected: true,
+  drift_score: 0.25,
+  summary:
+    "Drift detected: pass rate 88% -> 63% (-25%); largest dimension shift: correctness -0.22; output semantic drift 0.18.",
+};
+
+// ─── Evaluator quality (POST /evaluator-quality) ───────────────────────────────
+// Judge-vs-human agreement on a 12-case gold set. Cohen's kappa (chance-corrected)
+// is the headline, so a constant-verdict judge could not fake a high score.
+
+export const mockEvaluatorQuality: EvaluatorQuality = {
+  n_cases: 12,
+  n_agreements: 10,
+  accuracy: 0.8333,
+  cohen_kappa: 0.71,
+  per_label_recall: {
+    pass: 0.88,
+    fail: 0.8,
+    uncertain: 0.67,
+  },
+  agreement_band: "substantial",
+  summary:
+    "Evaluator agreed with 10/12 human gold verdicts (accuracy 83%); Cohen's kappa 0.71 (substantial).",
+};
 
 // ─── Runs (GET /runs) ──────────────────────────────────────────────────────────
 

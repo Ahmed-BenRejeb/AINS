@@ -52,6 +52,34 @@ export interface EvalVerdict {
   recommended_action: string;
 }
 
+/** Behavioural-drift comparison between two windows of runs (mirror schema.ts: DriftReport). */
+export interface DriftReport {
+  baseline_run_count: number;
+  current_run_count: number;
+  pass_rate_baseline: number;
+  pass_rate_current: number;
+  pass_rate_delta: number;
+  mean_score_baseline: number;
+  mean_score_current: number;
+  dimension_deltas: Record<string, number>;
+  most_shifted_dimension: string | null;
+  semantic_drift: number | null;
+  drift_detected: boolean;
+  drift_score: number;
+  summary: string;
+}
+
+/** Evaluator-vs-human gold-set agreement (mirror schema.ts: EvaluatorQuality). */
+export interface EvaluatorQuality {
+  n_cases: number;
+  n_agreements: number;
+  accuracy: number;
+  cohen_kappa: number;
+  per_label_recall: Record<string, number>;
+  agreement_band: string;
+  summary: string;
+}
+
 // ─── Retrieval (mirror schema.ts) ──────────────────────────────────────────────
 
 export interface Attribution {

@@ -73,6 +73,7 @@ dashboard/
 │   ├── runs/[run_id]/page.tsx            (3) execution trace
 │   ├── verdicts/[run_id]/page.tsx        (4) verdict detail
 │   ├── replay/[run_id]/page.tsx          (5) replay + bisect
+│   ├── reliability/page.tsx              (6) drift + evaluator-quality (UC1 §2.3/§2.4)
 │   └── api/{replay,bisect}/route.ts      server-side POST proxies (mock-aware)
 ├── components/
 │   ├── ui/                 card · badge · button · table · skeleton · progress
@@ -82,6 +83,8 @@ dashboard/
 │       ├── StepTimeline.tsx     staggered vertical execution timeline
 │       ├── DimensionTable.tsx   per-dimension rubric scores (right-aligned, inline conf bar)
 │       ├── AttributionBox.tsx   failure attribution headline
+│       ├── DriftPanel.tsx       behavioural-drift report (pass-rate + dimension + semantic drift)
+│       ├── EvaluatorQualityPanel.tsx  judge-vs-human Cohen's kappa + per-label recall
 │       ├── ReliabilityRing.tsx  animated SVG pass-rate gauge (hero showpiece)
 │       ├── motion.tsx           PageTransition / HoverCard / Tilt (mouse-spring) / stagger variants + EASE_OUT
 │       ├── AnimatedCounter / ConfidenceBar / DataSourceBadge / EmptyState / PageHeader / SiteHeader
@@ -160,6 +163,13 @@ only scans `.py` — does not require them.)
   home "Recent verdicts" table and the verdict detail page run on **mock-fallback**
   in live mode. This is expected — verdicts are produced inside the Phase-4 loop,
   not served from a list endpoint yet.
+- **The `/reliability` panels are mock-first.** `drift` and `evaluator-quality` are
+  computed on demand (`POST /drift`, `POST /evaluator-quality`), so there is no standing
+  GET to fetch a "latest" report. `getDrift`/`getEvaluatorQuality` optimistically try a
+  `GET …/latest` (same trick as the verdict accessors) and otherwise render the fixtures
+  (`mockDrift` / `mockEvaluatorQuality`); the header badge shows `mock` / `mock-fallback`
+  honestly. The panels demonstrate the explainability layer; the live numbers come from
+  the eval-report (`make eval`) and the endpoints directly.
 - **`GET /runs/{id}` trace rows don't carry latency.** The `trace_records` D1 row
   has `input_preview`/`output_preview` but `metadata_json` only stores the hmac
   algorithm — so `StepTimeline` shows `latency_ms` only when present (mock data has
