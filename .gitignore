@@ -75,3 +75,10 @@ secrets/
 # ── Claude Code local tooling (not project code) ─────────────────────────────
 .agents/
 skills-lock.json
+
+# ── Kubernetes — generated config/secrets (NEVER commit real values) ─────────
+# Only the *.example.yaml templates are committed; the populated manifests are
+# generated from the repo .env by deploy/k8s/gen-config.sh and stay local.
+deploy/k8s/**/configmap.yaml
+deploy/k8s/**/secret.yaml
+deploy/k8s/**/*.local.yaml

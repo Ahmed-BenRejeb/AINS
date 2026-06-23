@@ -1,0 +1,52 @@
+# xqdrant (Qdrant) — vector search backend. Internal-only ClusterIP.
+# Ephemeral storage (emptyDir): fine for a demo; swap for a PVC to persist vectors.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xqdrant
+  namespace: sentinel
+  labels: { app: xqdrant }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: xqdrant }
+  template:
+    metadata:
+      labels: { app: xqdrant }
+    spec:
+      containers:
+        - name: xqdrant
+          image: qdrant/qdrant:v1.12.4
+          ports:
+            - containerPort: 6333
+              name: http
+          volumeMounts:
+            - name: storage
+              mountPath: /qdrant/storage
+          readinessProbe:
+            httpGet: { path: /readyz, port: 6333 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /livez, port: 6333 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: "1", memory: 512Mi }
+      volumes:
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xqdrant
+  namespace: sentinel
+  labels: { app: xqdrant }
+spec:
+  selector: { app: xqdrant }
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333

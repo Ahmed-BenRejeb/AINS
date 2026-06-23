@@ -1,0 +1,50 @@
+# Atlassian Remote (UC3 heavy-compute backend) — /analyze /duplicates /search /embed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlassian-remote
+  namespace: sentinel
+  labels: { app: atlassian-remote }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: atlassian-remote }
+  template:
+    metadata:
+      labels: { app: atlassian-remote }
+    spec:
+      containers:
+        - name: atlassian-remote
+          image: sentinel-python:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            ["uvicorn", "api:app", "--app-dir", "packages/atlassian-remote", "--host", "0.0.0.0", "--port", "8080"]
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef: { name: sentinel-config }
+            - secretRef: { name: sentinel-secrets }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlassian-remote
+  namespace: sentinel
+  labels: { app: atlassian-remote }
+spec:
+  selector: { app: atlassian-remote }
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

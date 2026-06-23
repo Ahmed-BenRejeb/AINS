@@ -1,0 +1,47 @@
+# Load generator — drives traffic at the eval engine so KEDA scales it out.
+#
+# Targets /health (no auth, no external calls) at high concurrency: this is
+# offline-safe (independent of Cloudflare Workers AI) and reliably raises CPU
+# above the ScaledObject's 50% target because each eval-engine pod only requests
+# 100m CPU. Add load by scaling THIS deployment up; stop by deleting it.
+#
+#   kubectl -n sentinel scale deploy/load-generator --replicas=4   # more load
+#   kubectl -n sentinel delete -f deploy/k8s/load/load-generator.yaml  # stop
+#
+# To exercise the real evaluation path instead (needs valid Cloudflare creds),
+# point TARGET_PATH at /evaluate with a POST body + the X-Sentinel-Secret header.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-generator
+  namespace: sentinel
+  labels: { app: load-generator }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: load-generator }
+  template:
+    metadata:
+      labels: { app: load-generator }
+    spec:
+      containers:
+        - name: hammer
+          image: curlimages/curl:8.10.1
+          env:
+            - name: TARGET
+              value: "http://eval-engine:8000/health"
+            - name: CONCURRENCY
+              value: "40"
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "hammering $TARGET with $CONCURRENCY concurrent loops";
+              i=0;
+              while [ "$i" -lt "$CONCURRENCY" ]; do
+                ( while true; do curl -s -o /dev/null "$TARGET" || true; done ) &
+                i=$((i+1));
+              done;
+              wait
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { cpu: 250m, memory: 64Mi }

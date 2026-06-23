@@ -1,0 +1,11 @@
+apiVersion: v2
+name: sentinel
+description: Sentinel — AI agent reliability platform (eval/flight/remote + dashboard) with KEDA autoscaling
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - sentinel
+  - kubernetes
+  - keda
+  - autoscaling
