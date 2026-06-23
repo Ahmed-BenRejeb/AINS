@@ -1,0 +1,6 @@
+summary,description,category
+Checkout API returning 502 under load,"Payment service intermittently returns 502 during peak traffic; DB connection pool appears saturated and app servers are queuing requests.",database
+Search p99 latency regression after deploy,"Search endpoint p99 latency jumped 4x right after the 14:00 deploy; CPU normal, suspect a new N+1 query path.",performance
+Auth tokens rejected after rotation,"Users intermittently logged out; token validation failing for ~5% of requests since the signing key was rotated.",auth
+Background job backlog growing,"The nightly reconciliation queue is not draining; consumer lag climbing for 3 hours, no errors logged.",queue
+Disk filling on log volume,"/var/log at 92% on three nodes; verbose debug logging left enabled after last incident.",disk
