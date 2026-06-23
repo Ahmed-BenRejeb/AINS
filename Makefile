@@ -151,6 +151,13 @@ seed-xqdrant: ## Embed AO incidents + SENT runbooks (BGE-768) and load into xqdr
 	$(UV) run python scripts/seed_xqdrant.py
 	@echo "✓ xqdrant seeding complete."
 
+seed-custom: ## Seed a company's own incidents for a tailored demo (CSV=path)
+	@echo "→ Seeding custom incidents from $(CSV) into Jira AO + xqdrant..."
+	$(UV) run python scripts/seed_custom_incidents.py --csv $(CSV)
+
+bisect-demo: ## Build a good/bad run pair that diverges at the RCA step (for the bisect demo)
+	$(UV) run python scripts/make_bisect_pair.py
+
 eval: ## Run the eval suite — outputs pass^k report to stdout + docs/eval_report.md
 	@echo "→ Running eval suite (k=8 trials)..."
 	$(UV) run python scripts/run_synthetic_eval.py --k 8 --output docs/eval_report.md
