@@ -1,0 +1,31 @@
+{
+  "domains": {
+    "incident_sre": [
+      "Database connection pool exhausted; HikariCP timeout after 30s under burst load.",
+      "HTTP 504 gateway timeout on checkout API; p99 latency spiked to 12s.",
+      "Pod crash loop backoff in production namespace; readiness probe failing."
+    ],
+    "medical": [
+      "Patient presents with acute myocardial infarction and elevated troponin levels.",
+      "Differential diagnosis includes pneumonia versus pulmonary embolism.",
+      "Administer 325mg aspirin and schedule urgent cardiology consult."
+    ],
+    "code": [
+      "def fetch_user(session: Session, user_id: UUID) -> User:\n    return session.query(User).filter_by(id=user_id).one()",
+      "SELECT p.id, COUNT(o.id) FROM payments p JOIN orders o ON o.payment_id = p.id GROUP BY p.id HAVING COUNT(o.id) > 100;",
+      "kubectl rollout restart deployment/api-gateway -n prod --timeout=120s"
+    ],
+    "colloquial": [
+      "hey can u check why login is super slow rn thx",
+      "lol the site is totally broken again smh",
+      "idk what's up but my dashboard won't load???"
+    ]
+  },
+  "segmentation_probes": [
+    "unexplainable tokenizer behavior under load",
+    "connection pool exhaustion cascading to all services",
+    "tokenization"
+  ],
+  "perturbation_base": "Database connection pool exhausted during traffic spike; HikariCP timeout.",
+  "geometry_probe_tokens": ["##ing", "##tion", "##er", "##able", "pool", "timeout", "connection", "error"]
+}
