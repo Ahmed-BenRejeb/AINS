@@ -198,15 +198,30 @@ export async function getOverview(useMock: boolean): Promise<Loaded<Overview>> {
     return mock({ stats: mockStats(), summaries: mockVerdictSummaries() });
   }
 
-  const [runs, verdicts] = await Promise.all([
+  let [runs, verdicts] = await Promise.all([
     getRuns(false),
     getVerdictSummaries(false, 200),
   ]);
 
-  // If neither live source came back, present a clean mock-fallback bundle.
+  // Cold-start absorb: if BOTH fetches missed on the first try (e.g. a service is
+  // still warming right after a restart), wait briefly and retry once before giving
+  // up — so the first page load shows real data rather than flashing empty.
+  if (runs.source !== "live" && verdicts.source !== "live") {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    [runs, verdicts] = await Promise.all([getRuns(false), getVerdictSummaries(false, 200)]);
+  }
+
+  // Live mode: if neither source came back, present an HONEST EMPTY state, not mock
+  // fixtures. Showing fabricated demo numbers on a live page (e.g. during a brief
+  // service restart) is misleading — better to render zeros + an empty list and let
+  // the "fallback" badge + EmptyState say "live data unavailable". Rich mock fixtures
+  // are reserved for explicit ?mock=true.
   if (runs.source !== "live" && verdicts.source !== "live") {
     return fallback(
-      { stats: mockStats(), summaries: mockVerdictSummaries() },
+      {
+        stats: { total_runs: 0, pass_rate: 0, pass_hat_k: 0, flagged_for_human: 0 },
+        summaries: [],
+      },
       runs.error ?? verdicts.error ?? "live services unreachable",
     );
   }
