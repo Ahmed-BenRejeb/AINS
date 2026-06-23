@@ -1,0 +1,20 @@
+[project]
+name = "sentinel-interpretability"
+version = "0.1.0"
+description = "BGE tokenizer + embedding interpretability pipeline for Sentinel."
+readme = "README.md"
+# torch / sentence-transformers do not support Python 3.14 yet (2026-06).
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "torch>=2.2.0,<3.0",
+    "transformers>=4.40.0,<5.0",
+    "sentence-transformers>=3.0.0,<4.0",
+    "numpy>=1.26.0,<3.0",
+    "matplotlib>=3.8.0",
+    "scikit-learn>=1.4.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.29.0",
+]
+
+[tool.uv]
+package = false
