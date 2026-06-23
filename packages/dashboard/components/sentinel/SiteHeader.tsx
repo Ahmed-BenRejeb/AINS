@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { FlaskConical, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { SentinelMark } from "./Logo";
 import { LANGFUSE_URL } from "@/lib/api";
 import { cn, withMock } from "@/lib/utils";
@@ -60,19 +60,6 @@ export function SiteHeader() {
             Langfuse
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
           </a>
-          <Link
-            href={mock ? pathname : withMock(pathname, true)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors duration-200 ease-out",
-              mock
-                ? "border-verdict-uncertain/40 bg-verdict-uncertain/10 text-verdict-uncertain"
-                : "border-hairline text-muted-foreground hover:border-hairline-strong hover:text-foreground",
-            )}
-            title={mock ? "Showing fixture data. Click to use live services." : "Switch to fixture data"}
-          >
-            <FlaskConical className="h-3.5 w-3.5" aria-hidden />
-            {mock ? "Mock" : "Live"}
-          </Link>
           <Link
             href={withMock("/runs", mock)}
             className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3.5 py-1.5 text-sm font-medium text-accent-ink transition-transform duration-150 ease-out hover:bg-[#43efba] active:scale-[0.97]"

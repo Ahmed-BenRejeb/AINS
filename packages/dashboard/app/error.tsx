@@ -4,7 +4,7 @@ import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-/** Last-resort error boundary. Data fetches fall back to mock, so this is rare. */
+/** Last-resort error boundary. */
 export default function Error({ reset }: { error: Error; reset: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-hairline bg-card px-6 py-20 text-center">
@@ -13,14 +13,14 @@ export default function Error({ reset }: { error: Error; reset: () => void }) {
       </div>
       <h2 className="text-lg font-semibold text-foreground">Something went wrong</h2>
       <p className="max-w-sm text-sm text-muted-foreground">
-        The page hit an unexpected error. You can retry, or open it in demo mode with fixture data.
+        The page hit an unexpected error. Please retry, or head back to the overview.
       </p>
       <div className="flex gap-2">
         <Button onClick={reset} variant="secondary">
           Try again
         </Button>
-        <Link href="/?mock=true">
-          <Button>Open demo (mock)</Button>
+        <Link href="/">
+          <Button>Back to overview</Button>
         </Link>
       </div>
     </div>

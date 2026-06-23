@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Inbox, ChevronRight } from "lucide-react";
 import { PageTransition, motion, staggerContainer, staggerItem } from "../motion";
 import { PageHeader } from "../PageHeader";
@@ -49,15 +48,7 @@ export function RunsView({
         <EmptyState
           Icon={Inbox}
           title="No runs recorded yet"
-          description="Trigger an analysis on the Atlassian agent to record a run, or explore the demo with fixture data."
-          action={
-            <Link
-              href="/runs?mock=true"
-              className="text-sm text-verdict-pass underline-offset-4 hover:underline"
-            >
-              Load demo data (?mock=true)
-            </Link>
-          }
+          description="Trigger an analysis on the Atlassian agent (POST /analyze) to record a run; it will appear here."
         />
       ) : (
         <Card className="overflow-hidden">
