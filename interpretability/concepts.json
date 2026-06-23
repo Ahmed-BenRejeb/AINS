@@ -1,0 +1,102 @@
+{
+  "model": "BAAI/bge-base-en-v1.5",
+  "embedding_dimensions": 768,
+  "top_k": 30,
+  "concepts": [
+    {
+      "id": "db_pool_exhaustion",
+      "label": "Database connection pool exhaustion",
+      "prompt": "Database connection pool exhausted; HikariCP timeout; JDBC connection starvation; too many open connections"
+    },
+    {
+      "id": "api_latency_timeout",
+      "label": "API latency and timeout",
+      "prompt": "HTTP 504 gateway timeout; slow API response; request latency spike; service timeout under load"
+    },
+    {
+      "id": "memory_oom",
+      "label": "Memory leak and OOM",
+      "prompt": "Out of memory kill; heap exhaustion; memory leak; container OOMKilled; RAM saturation"
+    },
+    {
+      "id": "disk_storage_full",
+      "label": "Disk and storage exhaustion",
+      "prompt": "Disk full; inode exhaustion; storage quota exceeded; log volume filling disk"
+    },
+    {
+      "id": "dns_resolution",
+      "label": "DNS resolution failure",
+      "prompt": "DNS lookup failed; NXDOMAIN; resolver timeout; hostname cannot be resolved"
+    },
+    {
+      "id": "tls_certificate",
+      "label": "TLS certificate expiry",
+      "prompt": "SSL certificate expired; TLS handshake failure; cert mismatch; HTTPS trust error"
+    },
+    {
+      "id": "auth_token_failure",
+      "label": "Authentication and token failure",
+      "prompt": "OAuth token refresh failed; JWT expired; 401 unauthorized; session invalid; auth loop"
+    },
+    {
+      "id": "rate_limit_429",
+      "label": "Rate limiting and throttling",
+      "prompt": "HTTP 429 too many requests; API rate limit exceeded; throttling; quota exhausted"
+    },
+    {
+      "id": "cache_staleness",
+      "label": "Cache invalidation and staleness",
+      "prompt": "Stale cache served; cache miss storm; Redis eviction; CDN serving old content"
+    },
+    {
+      "id": "load_balancer_health",
+      "label": "Load balancer and health checks",
+      "prompt": "Load balancer unhealthy backend; health check failing; target group drained; no healthy upstream"
+    },
+    {
+      "id": "deployment_failure",
+      "label": "Deployment and rollback failure",
+      "prompt": "Bad deployment; rollback required; release caused outage; canary failure; version skew"
+    },
+    {
+      "id": "network_partition",
+      "label": "Network partition and connectivity",
+      "prompt": "Network partition; packet loss; firewall block; VPC routing failure; connectivity lost between services"
+    },
+    {
+      "id": "queue_backlog",
+      "label": "Message queue backlog",
+      "prompt": "Kafka lag; SQS backlog; RabbitMQ queue depth; consumer falling behind; message processing delay"
+    },
+    {
+      "id": "webhook_delivery",
+      "label": "Webhook delivery failure",
+      "prompt": "Webhook delivery failed; callback 502; event listener down; retry exhaustion on outbound hook"
+    },
+    {
+      "id": "kubernetes_crash",
+      "label": "Kubernetes pod crash loop",
+      "prompt": "Pod crash loop backoff; container restart; kubelet killed pod; readiness probe failing"
+    },
+    {
+      "id": "db_replication_lag",
+      "label": "Database replication lag",
+      "prompt": "Postgres replication lag; read replica stale; binlog delay; split brain on database cluster"
+    },
+    {
+      "id": "security_breach",
+      "label": "Security incident",
+      "prompt": "Unauthorized access; credential leak; suspicious login; privilege escalation; security breach"
+    },
+    {
+      "id": "config_drift",
+      "label": "Configuration drift",
+      "prompt": "Misconfiguration; wrong environment variable; feature flag mistake; config drift caused incident"
+    },
+    {
+      "id": "third_party_outage",
+      "label": "Third-party upstream outage",
+      "prompt": "External vendor outage; payment provider down; SaaS dependency failure; upstream API unavailable"
+    }
+  ]
+}
