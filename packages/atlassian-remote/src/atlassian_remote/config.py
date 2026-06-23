@@ -10,6 +10,7 @@ the ``eval-engine`` config module; thresholds that cross packages
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from trace_core import VECTOR_SIMILARITY_THRESHOLD
 
@@ -224,6 +225,19 @@ def replay_link(run_id: str) -> str:
     the flight-recorder API's ``/runs/{id}`` (which returns raw JSON).
     """
     return f"{dashboard_url()}/replay/{run_id}"
+
+
+# ─── Embedding dimension → concept labels (interpretability pipeline) ─────────
+
+_PACKAGE_DATA = Path(__file__).resolve().parent / "data" / "dimension_labels.json"
+
+
+def dimension_labels_path() -> Path:
+    """Path to ``dimension_labels.json`` (``DIMENSION_LABELS_PATH`` env override)."""
+    raw = os.environ.get("DIMENSION_LABELS_PATH")
+    if raw:
+        return Path(raw)
+    return _PACKAGE_DATA
 
 
 EVAL_TIMEOUT_SECONDS = 30.0

@@ -31,3 +31,6 @@ dependencies = [
 # src/atlassian_remote -> atlassian_remote in the wheel (and editable installs).
 [tool.hatch.build.targets.wheel]
 packages = ["src/atlassian_remote"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/atlassian_remote/data/dimension_labels.json" = "atlassian_remote/data/dimension_labels.json"

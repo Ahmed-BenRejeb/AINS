@@ -19,6 +19,25 @@ import type {
   TraceRecordRow,
   VerdictSummary,
 } from "./types";
+import { resolveRetrievalTerms } from "./resolve-retrieval-terms";
+
+/** Build a retrieval attribution row using the live dimension_labels.json map. */
+function mockRetrievalAttribution(
+  id: string,
+  score: number,
+  dims: Record<string, number>,
+  confidence_margin: number,
+) {
+  const { terms, unmappedDims } = resolveRetrievalTerms(dims);
+  return {
+    id,
+    score,
+    dims,
+    terms,
+    unmapped_dims: unmappedDims,
+    confidence_margin,
+  };
+}
 
 /** Stable run ids (UUID-shaped) used across runs, traces, and verdicts. */
 const RUN_IDS = {
@@ -114,6 +133,7 @@ function step(
   inputPreview: string,
   outputPreview: string,
   latencyMs: number,
+  metadata: Record<string, unknown> = {},
 ): TraceRecordRow {
   return {
     id: `${runId.slice(0, 8)}-step-${sequence}`,
@@ -129,13 +149,41 @@ function step(
     hmac: `hmac:${(sequence * 104729).toString(16).slice(0, 12)}`,
     input_preview: inputPreview,
     output_preview: outputPreview,
-    metadata_json: JSON.stringify({ hmac_algorithm: "sha256" }),
+    metadata_json: JSON.stringify({ hmac_algorithm: "sha256", ...metadata }),
     latency_ms: latencyMs,
   };
 }
 
+const MOCK_INCIDENT_ATTRIBUTIONS = [
+  mockRetrievalAttribution("AO-142", 0.89, { "350": 0.21, "94": 0.18, "659": 0.15 }, 0.07),
+  mockRetrievalAttribution("AO-77", 0.82, { "350": 0.17, "94": 0.14, "999": 0.12 }, 0.05),
+];
+
+const MOCK_RUNBOOK_ATTRIBUTIONS = [
+  mockRetrievalAttribution("RB-DB-POOL", 0.84, { "350": 0.19, "94": 0.16 }, 0.05),
+];
+
+function attributionConceptPreview(
+  entry: ReturnType<typeof mockRetrievalAttribution>,
+  limit = 2,
+): string {
+  const labels = Object.keys(entry.terms ?? {}).slice(0, limit);
+  if (labels.length > 0) {
+    return labels.join(", ");
+  }
+  if (entry.unmapped_dims && entry.unmapped_dims.length > 0) {
+    return `unmapped d${entry.unmapped_dims.join(", d")}`;
+  }
+  return "no concept mapping";
+}
+
+const RETRIEVAL_META = {
+  operation: "retrieval",
+  tool_name: "xqdrant.query_points",
+} as const;
+
 const RCA_FLOW: Array<
-  [TraceRecordRow["kind"], string, string, number]
+  [TraceRecordRow["kind"], string, string, number, Record<string, unknown>?]
 > = [
   [
     "decision",
@@ -152,14 +200,16 @@ const RCA_FLOW: Array<
   [
     "tool_call",
     "xqdrant.query_points(collection='incidents', limit=5)",
-    "5 hits · top score 0.89 · margin 0.07 → AO-142, AO-77, AO-31",
+    `5 hits · top score 0.89 · margin 0.07 · ${attributionConceptPreview(MOCK_INCIDENT_ATTRIBUTIONS[0])} → AO-142, AO-77, AO-31`,
     61,
+    { ...RETRIEVAL_META, attributions: MOCK_INCIDENT_ATTRIBUTIONS },
   ],
   [
     "tool_call",
     "xqdrant.query_points(collection='runbooks', limit=3)",
-    "2 hits · top score 0.84 → RB-DB-POOL, RB-LATENCY",
+    `2 hits · top score 0.84 · margin 0.05 · ${attributionConceptPreview(MOCK_RUNBOOK_ATTRIBUTIONS[0])} → RB-DB-POOL, RB-LATENCY`,
     47,
+    { ...RETRIEVAL_META, attributions: MOCK_RUNBOOK_ATTRIBUTIONS },
   ],
   [
     "llm_call",
@@ -170,8 +220,8 @@ const RCA_FLOW: Array<
 ];
 
 function buildTrace(runId: string): TraceRecordRow[] {
-  return RCA_FLOW.map(([kind, input, output, latency], i) =>
-    step(runId, i, kind, input, output, latency),
+  return RCA_FLOW.map(([kind, input, output, latency, metadata], i) =>
+    step(runId, i, kind, input, output, latency, metadata ?? {}),
   );
 }
 
@@ -202,8 +252,21 @@ const mockTraces: Record<string, TraceRecordRow[]> = {
       2,
       "tool_call",
       "xqdrant.query_points(collection='incidents', limit=5)",
-      "5 hits · top score 0.71 · margin 0.01 (ambiguous) → AO-90, AO-12",
+      `5 hits · top score 0.71 · margin 0.01 (ambiguous) · ${attributionConceptPreview(
+        mockRetrievalAttribution("AO-90", 0.71, { "90": 0.11, "12": 0.1, "7777": 0.08 }, 0.01),
+      )} → AO-90, AO-12`,
       58,
+      {
+        ...RETRIEVAL_META,
+        attributions: [
+          mockRetrievalAttribution(
+            "AO-90",
+            0.71,
+            { "90": 0.11, "12": 0.1, "7777": 0.08 },
+            0.01,
+          ),
+        ],
+      },
     ),
     step(
       RUN_IDS.fail1,

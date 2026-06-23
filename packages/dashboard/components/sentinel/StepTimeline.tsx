@@ -13,6 +13,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { motion, staggerContainer, staggerItem } from "./motion";
+import {
+  parseRetrievalAttributions,
+  RetrievalAttribution,
+} from "./RetrievalAttribution";
 import type { TraceRecordRow } from "@/lib/types";
 import { cn, truncate } from "@/lib/utils";
 
@@ -104,6 +108,7 @@ export function StepTimeline({ trace }: { trace: TraceRecordRow[] }) {
         const badgeKey =
           meta.operation && meta.operation in KIND_META ? meta.operation : String(step.kind);
         const model = shortModel(meta.model_id);
+        const retrievalAttributions = parseRetrievalAttributions(step.metadata_json);
         return (
           <motion.li key={step.id ?? i} variants={staggerItem} className="relative flex gap-4 pb-6 last:pb-0">
             {/* Rail + node */}
@@ -149,6 +154,17 @@ export function StepTimeline({ trace }: { trace: TraceRecordRow[] }) {
                   </code>
                 </div>
               </div>
+
+              {retrievalAttributions && retrievalAttributions.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    XQdrant explainability
+                  </p>
+                  {retrievalAttributions.map((entry) => (
+                    <RetrievalAttribution key={entry.id} entry={entry} />
+                  ))}
+                </div>
+              )}
             </div>
           </motion.li>
         );

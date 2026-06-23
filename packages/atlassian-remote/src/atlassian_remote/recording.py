@@ -78,6 +78,7 @@ class RunRecorder:
         output: dict[str, object],
         input_preview: str,
         output_preview: str,
+        extra_metadata: dict[str, object] | None = None,
     ) -> None:
         """Tape a logical tool call (e.g. an xqdrant search) into the run's trace.
 
@@ -85,13 +86,20 @@ class RunRecorder:
         embed -> search -> search -> reason, not just raw model calls. Best-effort:
         a recorder hiccup must never fail the analysis. The xqdrant searches reuse
         the already-taped query embedding, so no extra LLM call is made.
+
+        Args:
+            extra_metadata: Optional display-only fields merged into ``metadata_json``
+                (e.g. retrieval ``attributions`` for the dashboard timeline).
         """
+        metadata: dict[str, object] = {"tool_name": tool_name, "operation": "retrieval"}
+        if extra_metadata:
+            metadata.update(extra_metadata)
         try:
             self.transport.record_event(
                 kind="tool_call",
                 input_data={"tool_name": tool_name, "arguments": arguments},
                 output_data=output,
-                metadata={"tool_name": tool_name, "operation": "retrieval"},
+                metadata=metadata,
                 input_preview=input_preview,
                 output_preview=output_preview,
             )

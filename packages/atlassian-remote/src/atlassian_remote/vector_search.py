@@ -12,21 +12,21 @@ Two behaviours the schema and root ``CLAUDE.md`` require:
   matches too (root CLAUDE.md §10). Incidents use 0.75; runbooks use a lower floor
   (0.60) because incident→runbook cosine is structurally lower than
   incident→incident on the seeded BGE-768 data.
-* **Attribution is always populated** — xqdrant's differentiator. When the payload
-  carries an explainability block it is used verbatim; otherwise a fallback
-  :class:`trace_core.Attribution` is synthesised with the ``confidence_margin``
-  computed as the score gap to the next-best hit.
+* **Attribution is always populated** — xqdrant's differentiator. When the search
+  response carries ``score_explanation.top_dimensions``, those map into
+  :attr:`~trace_core.Attribution.dims`; a stored ``payload.attribution`` block is
+  used as fallback; otherwise only ``confidence_margin`` is synthesised as the
+  score gap to the next-best hit.
 
-The qdrant client and embedding call are module-level so tests monkeypatch them
-and never touch a real server or the network.
+The search call and embedding are module-level so tests monkeypatch them and never
+touch a real server or the network.
 """
 
 from __future__ import annotations
 
-from functools import lru_cache
+from dataclasses import dataclass
 
-from qdrant_client import QdrantClient
-from qdrant_client.http.models import ScoredPoint
+import httpx
 from trace_core import (
     MAX_RETRIEVAL_RESULTS,
     Attribution,
@@ -35,14 +35,21 @@ from trace_core import (
 
 from . import cf_ai_client, langfuse_client
 from .config import similarity_threshold, xqdrant_url
+from .dimension_label_map import enrich_attribution
 
 _TEXT_KEYS = ("text", "description", "summary", "body")
+XQDRANT_SEARCH_TIMEOUT_SECONDS = 15.0
+"""Per-search timeout for the internal xqdrant HTTP API."""
 
 
-@lru_cache(maxsize=1)
-def get_client() -> QdrantClient:
-    """Build (and cache) the xqdrant client pointed at ``XQDRANT_URL``."""
-    return QdrantClient(url=xqdrant_url())
+@dataclass(frozen=True)
+class _SearchHit:
+    """One ranked hit from an XQdrant ``/points/search`` response."""
+
+    id: str
+    score: float
+    payload: dict[str, object]
+    score_explanation: dict[str, object] | None = None
 
 
 def _hit_text(payload: dict[str, object]) -> str:
@@ -54,30 +61,104 @@ def _hit_text(payload: dict[str, object]) -> str:
     return ""
 
 
-def _build_attribution(payload: dict[str, object], margin: float) -> Attribution:
-    """Use the payload's explainability block if present, else synthesise one.
+def _dims_from_explanation(score_explanation: dict[str, object] | None) -> dict[str, float]:
+    """Map XQdrant ``score_explanation.top_dimensions`` into ``Attribution.dims``."""
+    if not score_explanation:
+        return {}
+    top = score_explanation.get("top_dimensions")
+    if not isinstance(top, list):
+        return {}
+    dims: dict[str, float] = {}
+    for item in top:
+        if not isinstance(item, dict):
+            continue
+        dimension = item.get("dimension")
+        contribution = item.get("contribution")
+        if dimension is None or contribution is None:
+            continue
+        dims[str(dimension)] = float(contribution)
+    return dims
+
+
+def _build_attribution(hit: _SearchHit, margin: float) -> Attribution:
+    """Build attribution from XQdrant score explanation, payload, or margin fallback.
 
     Args:
-        payload: The hit payload from xqdrant.
+        hit: The search hit (score explanation + payload).
         margin: Score gap to the next-best hit (fallback ``confidence_margin``).
 
     Returns:
         An :class:`trace_core.Attribution` (never ``None`` — the schema requires it).
     """
-    raw = payload.get("attribution")
+    dims = _dims_from_explanation(hit.score_explanation)
+    if dims:
+        return enrich_attribution(Attribution(dims=dims, terms={}, confidence_margin=margin))
+    raw = hit.payload.get("attribution")
     if isinstance(raw, dict):
         try:
-            return Attribution.model_validate(raw)
+            return enrich_attribution(Attribution.model_validate(raw))
         except ValueError:
             pass  # Malformed payload attribution → fall back to the synthesised one.
     return Attribution(dims={}, terms={}, confidence_margin=margin)
 
 
-def _margin(points: list[ScoredPoint], index: int, floor: float) -> float:
-    """Score gap from ``points[index]`` to the next hit (or the relevance floor)."""
-    if index + 1 < len(points):
-        return points[index].score - points[index + 1].score
-    return points[index].score - floor
+def _margin(hits: list[_SearchHit], index: int, floor: float) -> float:
+    """Score gap from ``hits[index]`` to the next hit (or the relevance floor)."""
+    if index + 1 < len(hits):
+        return hits[index].score - hits[index + 1].score
+    return hits[index].score - floor
+
+
+async def _query_collection(
+    collection: str,
+    vector: list[float],
+    limit: int,
+) -> list[_SearchHit]:
+    """POST ``/collections/{collection}/points/search`` with XQdrant explainability.
+
+    Args:
+        collection: xqdrant collection name.
+        vector: Query embedding (768-dim BGE).
+        limit: Maximum hits to retrieve before threshold filtering.
+
+    Returns:
+        Ranked hits from the search ``result`` array.
+    """
+    url = f"{xqdrant_url().rstrip('/')}/collections/{collection}/points/search"
+    body = {
+        "vector": vector,
+        "limit": limit,
+        "with_payload": True,
+        "with_explanation": True,
+    }
+    async with httpx.AsyncClient(timeout=XQDRANT_SEARCH_TIMEOUT_SECONDS) as client:
+        response = await client.post(url, json=body)
+        response.raise_for_status()
+        raw_result = response.json().get("result", [])
+
+    hits: list[_SearchHit] = []
+    if not isinstance(raw_result, list):
+        return hits
+    for item in raw_result:
+        if not isinstance(item, dict):
+            continue
+        point_id = item.get("id")
+        score = item.get("score")
+        if point_id is None or score is None:
+            continue
+        payload_raw = item.get("payload") or {}
+        payload = payload_raw if isinstance(payload_raw, dict) else {}
+        explanation_raw = item.get("score_explanation")
+        explanation = explanation_raw if isinstance(explanation_raw, dict) else None
+        hits.append(
+            _SearchHit(
+                id=str(point_id),
+                score=float(score),
+                payload=payload,
+                score_explanation=explanation,
+            )
+        )
+    return hits
 
 
 async def search_similar(
@@ -112,29 +193,22 @@ async def search_similar(
     try:
         if embedding is None:
             embedding = await cf_ai_embed_query(query_text)
-        response = get_client().query_points(
-            collection_name=collection,
-            query=embedding,
-            limit=k,
-            with_payload=True,
-        )
+        hits = await _query_collection(collection, embedding, k)
     except Exception as exc:
         # End the span even when the embed/search fails, so a failed run produces a
         # complete (error-tagged) observation instead of a dangling one in Langfuse.
         langfuse_client.end_observation(span, output={"error": repr(exc)})
         raise
-    points: list[ScoredPoint] = response.points
     results: list[SearchResult] = []
-    for index, point in enumerate(points):
-        if point.score <= floor:
+    for index, hit in enumerate(hits):
+        if hit.score <= floor:
             continue
-        payload = point.payload or {}
         results.append(
             SearchResult(
-                id=str(point.id),
-                text=_hit_text(payload),
-                score=point.score,
-                attribution=_build_attribution(payload, _margin(points, index, floor)),
+                id=hit.id,
+                text=_hit_text(hit.payload),
+                score=hit.score,
+                attribution=_build_attribution(hit, _margin(hits, index, floor)),
             )
         )
     langfuse_client.end_observation(

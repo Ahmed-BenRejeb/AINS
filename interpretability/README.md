@@ -73,6 +73,13 @@ To resolve a raw xqdrant dim at runtime (e.g. `421`), invert the map: find which
 
 After regenerating labels, copy `dimension_labels.json` into the dashboard and match xqdrant dims against each concept's list (or build an inverted index at load time).
 
+**Bundled copies** (keep in sync when you re-run the interpretability pipeline):
+
+- `packages/atlassian-remote/src/atlassian_remote/data/dimension_labels.json` — backend resolves `Attribution.terms` at search time
+- `packages/dashboard/lib/dimension_labels.json` — dashboard fallback for older traces without `terms`
+
+Override path on the VM with `DIMENSION_LABELS_PATH`.
+
 Edit **`concepts.json`** (SRE concept prompts) and **`samples.json`** (probe corpora for steps 1–4), then re-run step 5.
 
 ---

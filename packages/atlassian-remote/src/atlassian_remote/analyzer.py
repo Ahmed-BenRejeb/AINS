@@ -25,6 +25,7 @@ from trace_core import MAX_RETRIEVAL_RESULTS
 from . import duplicate_resolver, eval_client, rca_generator, recording, vector_search
 from .atlassian_client import AtlassianClient
 from .config import incidents_collection, replay_link, runbooks_collection
+from .dimension_label_map import unmapped_dimensions
 from .models import AnalyzeResult, DuplicateResult
 
 
@@ -68,6 +69,38 @@ def extract_incident_text(issue: dict[str, Any]) -> str:
     return f"{summary}\n\n{description_text}".strip()
 
 
+def _attribution_summary(hits: list[Any], *, limit: int = 3) -> list[dict[str, object]]:
+    """Summarise top hits' XQdrant dimension attributions for trace metadata."""
+    summary: list[dict[str, object]] = []
+    for hit in hits[:limit]:
+        dims = dict(hit.attribution.dims)
+        terms = dict(hit.attribution.terms)
+        unmapped = unmapped_dimensions(dims)
+        summary.append(
+            {
+                "id": hit.id,
+                "score": hit.score,
+                "dims": dims,
+                "terms": terms,
+                "unmapped_dims": unmapped,
+                "confidence_margin": hit.attribution.confidence_margin,
+            }
+        )
+    return summary
+
+
+def _attribution_preview(hits: list[Any]) -> str:
+    """One-line explainability preview for the trace output column."""
+    if not hits:
+        return ""
+    attr = hits[0].attribution
+    if attr.terms:
+        return ", ".join(f"{label}={v:.2f}" for label, v in list(attr.terms.items())[:3])
+    if attr.dims:
+        return ", ".join(f"d{d}={v:.2f}" for d, v in list(attr.dims.items())[:3])
+    return ""
+
+
 def _record_search(
     recorder: recording.RunRecorder,
     label: str,
@@ -78,6 +111,10 @@ def _record_search(
 ) -> None:
     """Tape one xqdrant retrieval as a tool_call step on the run's trace."""
     top = f", top {hits[0].score:.3f}" if hits else ""
+    margin = hits[0].attribution.confidence_margin if hits else None
+    margin_note = f" · margin {margin:.2f}" if margin is not None else ""
+    preview = _attribution_preview(hits)
+    dims_note = f" · {preview}" if preview else ""
     recorder.record_tool_call(
         tool_name="xqdrant.query_points",
         arguments={"collection": collection, "k": k},
@@ -85,9 +122,11 @@ def _record_search(
             "count": len(hits),
             "top_score": hits[0].score if hits else None,
             "hits": [hit.id for hit in hits],
+            "attributions": _attribution_summary(hits),
         },
         input_preview=f"search {label} (k={k}) for: {incident_text[:140]}",
-        output_preview=f"{len(hits)} {label} hit(s){top}",
+        output_preview=f"{len(hits)} {label} hit(s){top}{margin_note}{dims_note}",
+        extra_metadata={"attributions": _attribution_summary(hits)} if hits else None,
     )
 
 
