@@ -274,12 +274,15 @@ export async function getOverview(useMock: boolean): Promise<Loaded<Overview>> {
 export async function postReplay(
   runId: string,
   useMock: boolean,
+  inject?: Record<number, unknown>,
 ): Promise<Loaded<ReplayResult>> {
   if (useMock) return mock(mockReplay(runId));
   try {
+    const body: Record<string, unknown> = { run_id: runId };
+    if (inject && Object.keys(inject).length > 0) body.inject = inject;
     const result = await fetchJson<ReplayResult>(
       `${FLIGHT_RECORDER_API}/replay`,
-      { method: "POST", body: JSON.stringify({ run_id: runId }) },
+      { method: "POST", body: JSON.stringify(body) },
       REPLAY_TIMEOUT_MS,
     );
     return live(result);

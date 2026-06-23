@@ -56,6 +56,13 @@ class ReplayRequest(BaseModel):
     """Body for ``POST /replay``."""
 
     run_id: str = Field(description="UUID of the run to replay.")
+    inject: dict[int, dict[str, Any]] | None = Field(
+        default=None,
+        description=(
+            "Divergence editing (UC2 §3.4): a {step_index: stored_response} map that "
+            "overrides the recorded response at those steps during replay."
+        ),
+    )
 
 
 class BisectRequest(BaseModel):
@@ -104,8 +111,18 @@ def get_run(run_id: str) -> dict[str, Any]:
 
 @app.post("/replay", dependencies=_AUTH)
 def post_replay(request: ReplayRequest) -> ReplayResult:
-    """Replay a run from its cassette and return the divergence report."""
-    return replay_run(valid_run_id(request.run_id))
+    """Replay a run from its cassette and return the divergence report.
+
+    Re-drives the recorded CF calls from tape (zero live calls). When ``inject`` is
+    given, the listed steps' responses are overridden mid-replay (divergence editing).
+    """
+    from flight_recorder.proxy import cassette
+    from flight_recorder.replay.engine import build_tape_agent
+
+    valid_run_id(request.run_id)
+    records = cassette.load_cassette(request.run_id).get("records", [])
+    agent = build_tape_agent(records) if records else None
+    return replay_run(request.run_id, agent=agent, inject=request.inject)
 
 
 @app.post("/bisect", dependencies=_AUTH)

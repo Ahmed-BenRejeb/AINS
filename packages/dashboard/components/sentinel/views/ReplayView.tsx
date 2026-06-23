@@ -10,6 +10,7 @@ import {
   Loader2,
   ShieldCheck,
   Film,
+  FlaskConical,
 } from "lucide-react";
 import { PageTransition, motion } from "../motion";
 import { PageHeader } from "../PageHeader";
@@ -45,6 +46,14 @@ export function ReplayView({
   const [bisect, setBisect] = useState<Loaded<BisectResult> | null>(null);
   const [bisectLoading, setBisectLoading] = useState(false);
 
+  // Divergence editing (UC2 §3.4): override a recorded step's response mid-replay.
+  const httpSteps = (detail?.trace ?? []).filter((s) => String(s.kind) === "llm_call");
+  const [injectStep, setInjectStep] = useState(0);
+  const [injectText, setInjectText] = useState('{"result": {"response": "INJECTED override"}}');
+  const [inject, setInject] = useState<Loaded<ReplayResult> | null>(null);
+  const [injectLoading, setInjectLoading] = useState(false);
+  const [injectError, setInjectError] = useState<string | null>(null);
+
   async function launchReplay() {
     setReplayLoading(true);
     setReplay(null);
@@ -57,6 +66,35 @@ export function ReplayView({
       setReplay((await res.json()) as Loaded<ReplayResult>);
     } finally {
       setReplayLoading(false);
+    }
+  }
+
+  async function launchInject() {
+    setInjectError(null);
+    let body: unknown;
+    try {
+      body = JSON.parse(injectText);
+    } catch {
+      setInjectError("Override must be valid JSON (the response body the model returns).");
+      return;
+    }
+    setInjectLoading(true);
+    setInject(null);
+    try {
+      const override = {
+        status_code: 200,
+        headers: { "content-type": "application/json" },
+        is_json: true,
+        body,
+      };
+      const res = await fetch("/api/replay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ run_id: runId, mock, inject: { [injectStep]: override } }),
+      });
+      setInject((await res.json()) as Loaded<ReplayResult>);
+    } finally {
+      setInjectLoading(false);
     }
   }
 
@@ -150,6 +188,68 @@ export function ReplayView({
           {replay && <ReplayResultPanel result={replay} />}
         </CardContent>
       </Card>
+
+      {/* Divergence editing — inject a modified response mid-replay */}
+      {httpSteps.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <FlaskConical className="h-4 w-4 text-muted-foreground" aria-hidden />
+              Divergence editing (inject during replay)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Override a recorded model response and replay. The override is served from the harness
+              instead of the tape, with{" "}
+              <span className="font-medium text-foreground">zero live API calls</span>. If the agent
+              branches on this value it takes a new path (an unrecorded request shows up as a
+              divergence); on a run whose model calls are independent the override is served and the
+              run still completes, proving the inject hook.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
+              <label className="space-y-1.5">
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Step to override
+                </span>
+                <select
+                  value={injectStep}
+                  onChange={(e) => setInjectStep(Number(e.target.value))}
+                  className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-white/25"
+                >
+                  {httpSteps.map((_, i) => (
+                    <option key={i} value={i}>
+                      step {i} ({i === httpSteps.length - 1 ? "RCA / chat" : "embedding"})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Override response (JSON)
+                </span>
+                <textarea
+                  value={injectText}
+                  onChange={(e) => setInjectText(e.target.value)}
+                  spellCheck={false}
+                  rows={2}
+                  className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-white/25"
+                />
+              </label>
+            </div>
+            <Button onClick={launchInject} disabled={injectLoading} variant="secondary">
+              {injectLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <FlaskConical className="h-4 w-4" aria-hidden />
+              )}
+              {injectLoading ? "Injecting…" : "Inject & replay"}
+            </Button>
+            {injectError && <p className="text-xs text-verdict-fail">{injectError}</p>}
+            {inject && <ReplayResultPanel result={inject} />}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bisect */}
       <Card>
@@ -265,6 +365,13 @@ function ReplayResultPanel({ result }: { result: Loaded<ReplayResult> }) {
           accent={r.diverged ? "text-verdict-fail" : "text-verdict-pass"}
         />
       </div>
+      {r.injected_steps && r.injected_steps.length > 0 && (
+        <p className="flex items-center gap-1.5 text-xs text-amber-300/90">
+          <FlaskConical className="h-3.5 w-3.5" aria-hidden />
+          Overrode step{r.injected_steps.length === 1 ? "" : "s"} {r.injected_steps.join(", ")} during
+          replay (served from the harness, not the tape).
+        </p>
+      )}
       {r.divergences.length > 0 && (
         <div className="space-y-2">
           {r.divergences.map((d, i) => (
