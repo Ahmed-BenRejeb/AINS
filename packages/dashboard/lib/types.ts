@@ -191,3 +191,31 @@ export interface OverviewStats {
   pass_hat_k: number; // 0–1, fraction of runs where ALL trials passed (true pass^k)
   flagged_for_human: number;
 }
+
+/** Response of `POST /drift` (UC1 §2.3). Mirrors trace_core.DriftReport. */
+export interface DriftReport {
+  baseline_run_count: number;
+  current_run_count: number;
+  pass_rate_baseline: number;
+  pass_rate_current: number;
+  pass_rate_delta: number;
+  mean_score_baseline: number;
+  mean_score_current: number;
+  dimension_deltas: Record<string, number>;
+  most_shifted_dimension: string | null;
+  semantic_drift: number | null;
+  drift_detected: boolean;
+  drift_score: number;
+  summary: string;
+}
+
+/** Response of `GET /evaluator-quality/demo` (UC1 §2.4). Mirrors trace_core.EvaluatorQuality. */
+export interface EvaluatorQuality {
+  n_cases: number;
+  n_agreements: number;
+  accuracy: number;
+  cohen_kappa: number;
+  per_label_recall: Record<string, number>;
+  agreement_band: string;
+  summary: string;
+}
