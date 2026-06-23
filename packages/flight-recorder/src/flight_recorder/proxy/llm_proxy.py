@@ -119,6 +119,8 @@ class _RecordingCore:
     _prev_hash: str
     _sequence: int
     live_call_count: int
+    _injections: dict[str, dict[str, Any]]
+    injected_steps: list[str]
 
     def _init_recording(self, run_id: str, mode: FlightMode | None) -> None:
         """Initialise the per-run recording state (called by each subclass)."""
@@ -128,6 +130,15 @@ class _RecordingCore:
         self._sequence = 0
         self.live_call_count = 0
         """Number of calls actually forwarded to the network — must be 0 in replay."""
+        self._injections = {}
+        """Replay overrides: step_key -> stored response to return instead of the tape.
+
+        Used for **divergence editing** (UC2 §3.4): a developer overrides a recorded
+        response at a step; the agent then reasons on the injected value and may ask
+        something that was never recorded — a cassette miss surfaced as a divergence,
+        i.e. the agent took a new path.
+        """
+        self.injected_steps = []
 
     @property
     def step_count(self) -> int:
@@ -252,7 +263,16 @@ class _RecordingCore:
         }
 
     def _replay(self, request: httpx.Request, step_key: str) -> httpx.Response:
-        """Return the recorded response for ``step_key`` without any live call."""
+        """Return the recorded (or injected) response for ``step_key``, no live call.
+
+        If an injection is registered for this step, the override is returned instead
+        of the tape — the divergence-editing hook (UC2 §3.4). Otherwise a missing key
+        raises :class:`CassetteMissError` (a request the agent never made originally,
+        i.e. it has diverged onto a new path).
+        """
+        if step_key in self._injections:
+            self.injected_steps.append(step_key)
+            return self._rebuild_response(self._injections[step_key], request)
         steps = cassette.load_cassette(self.run_id)["steps"]
         if step_key not in steps:
             raise CassetteMissError(step_key)
@@ -314,6 +334,7 @@ class RecordingTransport(_RecordingCore, httpx.BaseTransport):
         mode: FlightMode | None = None,
         *,
         inner: httpx.BaseTransport | None = None,
+        injections: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """Create a transport bound to one run.
 
@@ -323,9 +344,14 @@ class RecordingTransport(_RecordingCore, httpx.BaseTransport):
             inner: Transport used to forward live calls; defaults to a real
                 ``httpx.HTTPTransport`` (created lazily so replay never opens a
                 socket).
+            injections: Replay-only ``step_key -> stored response`` overrides for
+                divergence editing (UC2 §3.4) — the agent receives the override
+                instead of the recorded response at that step.
         """
         self._init_recording(run_id, mode)
         self._inner: httpx.BaseTransport | None = inner
+        if injections:
+            self._injections = injections
 
     @property
     def inner(self) -> httpx.BaseTransport:
