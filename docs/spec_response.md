@@ -56,9 +56,9 @@ Legend: ✅ done & live · 🟦 built, Forge-cloud deploy pending · ⬜ not don
 | Record functionality | Must | ✅ | every LLM + tool call taped → cassette (MinIO) + hash-chained audit (D1) |
 | Deterministic replay | Must | ✅ | `POST /replay` → 0 live calls, no divergence |
 | State inspection | Must | ✅ | exact per-step input/output on `dashboard/runs/{id}` + `dashboard/replay/{id}` |
-| Divergence editing | Should | 🟦→✅ (bisect) | `POST /bisect` finds the first diverging step (same-incident good/bad pair via `make bisect-demo`). Full *mid-replay prompt injection* (edit a value and continue) is the one **partial** item — see Gaps. |
+| Divergence editing | Should | ✅ | **Two ways:** (1) `replay_run(run_id, agent, inject={step: response})` overrides a recorded response mid-replay so the agent **takes a new path** (the unrecorded request surfaces as a divergence) — UC2 §3.3/§3.4 exactly; (2) `POST /bisect` finds the first diverging step between two runs (`make bisect-demo`). |
 
-**Both Musts met; the Should is met as bisect-based divergence detection; live prompt-injection-during-replay is the remaining stretch.**
+**All UC2 Musts and the Should are met:** record, deterministic replay, state inspection, and divergence editing (mid-replay injection + bisect).
 
 ---
 
@@ -109,10 +109,12 @@ Legend: ✅ done & live · 🟦 built, Forge-cloud deploy pending · ⬜ not don
 | Gap | Impact | Path |
 |---|---|---|
 | **Forge cloud deploy** of the Rovo agent (`forge deploy`/`install`) | The agent's native in-Atlassian UI isn't live (the backend + read/write are) | Run `forge deploy --environment development` + `forge install` from a workstation with an Atlassian login |
-| **Mid-replay prompt injection** (UC2 "Should": edit a value during replay and continue) | We do bisect-based divergence, not live injection-and-continue | Add an inject hook to the replay engine that overrides a step's recorded response and lets the agent continue |
 | **Larger judge model** | The free 8B judge is noisier (more `uncertain`), visible in pass^k | Point `CF_AI_MODEL_MAIN` at a stronger model for the demo; keep 8B for cost |
 | **Richer runbook content** | Templated seed runbooks cap incident→runbook cosine ~0.71 (handled with a 0.60 floor) | Re-seed real remediation content |
 | **External enterprise sign-off** (bonus) | Not yet collected | Hand `validation_guide.md` to one platform owner to run + fill the remarks table |
 | **Public-API auth** (security) | Addressed in the security pass — see `docs/security_audit.md` | — |
 
-**Bottom line:** every **Must** across UC1/UC2/UC3 is met and live; every **Should** is met except live mid-replay injection (we provide bisect instead); the main remaining deployment step is the Forge cloud install.
+**Bottom line:** every **Must** and every **Should** across UC1/UC2/UC3 is now met
+(including mid-replay divergence injection); the only remaining items are
+*deployment/process*, not capability — the Forge cloud install and an external
+engineer's sign-off on `docs/validation_guide.md`.

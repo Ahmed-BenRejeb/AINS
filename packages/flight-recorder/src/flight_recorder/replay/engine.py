@@ -45,6 +45,10 @@ class ReplayResult(BaseModel):
     divergences: list[Divergence] = Field(
         default_factory=list, description="Every detected divergence (empty when clean)."
     )
+    injected_steps: list[int] = Field(
+        default_factory=list,
+        description="Indices of steps whose recorded response was overridden (divergence editing).",
+    )
 
     @property
     def is_clean(self) -> bool:
@@ -52,7 +56,11 @@ class ReplayResult(BaseModel):
         return self.live_call_count == 0 and not self.diverged
 
 
-def replay_run(run_id: str, agent: ReplayAgent | None = None) -> ReplayResult:
+def replay_run(
+    run_id: str,
+    agent: ReplayAgent | None = None,
+    inject: dict[int, dict[str, object]] | None = None,
+) -> ReplayResult:
     """Replay a recorded run from its cassette and report any divergence.
 
     Args:
@@ -60,6 +68,11 @@ def replay_run(run_id: str, agent: ReplayAgent | None = None) -> ReplayResult:
         agent: Optional callable that re-drives the agent against a replay-bound
             ``httpx.Client``. When omitted, the cassette is loaded and validated
             without re-execution (a no-op replay that still proves 0 live calls).
+        inject: Optional **divergence editing** (UC2 §3.4): a ``{step_index:
+            stored_response}`` map overriding the recorded response at those steps,
+            by position in the cassette's ``order``. The re-driven agent then sees
+            the injected value and may take a new path (an unrecorded request shows
+            up as a divergence). Requires ``agent``.
 
     Returns:
         A :class:`ReplayResult`. ``live_call_count`` is asserted to be 0 for the
@@ -67,7 +80,14 @@ def replay_run(run_id: str, agent: ReplayAgent | None = None) -> ReplayResult:
     """
     loaded = cassette.load_cassette(run_id)
     recorded_steps = len(loaded["steps"])
-    transport = RecordingTransport(run_id, mode="replay")
+    order: list[str] = loaded["order"]
+    injections: dict[str, dict[str, object]] = {}
+    applied: list[int] = []
+    for index, override in (inject or {}).items():
+        if 0 <= index < len(order):
+            injections[order[index]] = override
+            applied.append(index)
+    transport = RecordingTransport(run_id, mode="replay", injections=injections)
     divergences: list[Divergence] = []
 
     if agent is not None:
@@ -95,4 +115,5 @@ def replay_run(run_id: str, agent: ReplayAgent | None = None) -> ReplayResult:
         live_call_count=transport.live_call_count,
         diverged=bool(divergences),
         divergences=divergences,
+        injected_steps=sorted(applied),
     )
