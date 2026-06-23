@@ -13,12 +13,23 @@ live D1 (or network) is touched.
 from __future__ import annotations
 
 import os
+import re
 from functools import lru_cache
 from typing import Any
 
 import httpx
 
 _D1_TIMEOUT_SECONDS = 30.0
+# SQL identifiers (table/column names) are interpolated into the statement, so they
+# must match a strict allowlist — values are always parameterised with `?`.
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _check_identifier(name: str) -> str:
+    """Reject any table/column name that is not a plain SQL identifier."""
+    if not _IDENTIFIER_RE.match(name):
+        raise ValueError(f"unsafe SQL identifier: {name!r}")
+    return name
 
 
 class D1Client:
@@ -74,10 +85,10 @@ class D1Client:
             table: Target table name.
             record: Column→value mapping; keys become the column list.
         """
-        columns = list(record.keys())
+        columns = [_check_identifier(name) for name in record]
         placeholders = ", ".join("?" for _ in columns)
         column_list = ", ".join(columns)
-        sql = f"INSERT INTO {table} ({column_list}) VALUES ({placeholders})"
+        sql = f"INSERT INTO {_check_identifier(table)} ({column_list}) VALUES ({placeholders})"
         self.query(sql, [record[column] for column in columns])
 
 

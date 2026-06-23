@@ -52,3 +52,5 @@ def cf_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(key, raising=False)
     # D1 intentionally left unconfigured → persist_verdict() no-ops (no network).
     monkeypatch.delenv("CF_D1_DATABASE_ID", raising=False)
+    # Shared-secret unset → the API auth gate is a no-op in tests (routes stay open).
+    monkeypatch.delenv("FORGE_REMOTE_SECRET", raising=False)

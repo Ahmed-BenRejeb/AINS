@@ -32,6 +32,21 @@ def _load_api() -> ModuleType:
     return module
 
 
+def test_verdicts_401_without_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With FORGE_REMOTE_SECRET set, /verdicts requires a matching X-Sentinel-Secret."""
+    monkeypatch.setenv("FORGE_REMOTE_SECRET", "s3cret")
+    client = TestClient(_load_api().app)
+    assert client.get("/verdicts").status_code == 401
+    assert client.get("/health").status_code == 200  # health stays open
+
+
+def test_evaluate_rejects_non_uuid_run_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-uuid run_id is rejected with 400 before any work (injection guard)."""
+    monkeypatch.delenv("FORGE_REMOTE_SECRET", raising=False)
+    client = TestClient(_load_api().app)
+    assert client.post("/evaluate", json={"run_id": "../x", "records": []}).status_code == 400
+
+
 def test_evaluate_maps_upstream_cf_429_to_503(
     monkeypatch: pytest.MonkeyPatch, trace_pass: list[TraceRecord]
 ) -> None:
@@ -58,7 +73,7 @@ def test_evaluate_maps_upstream_cf_429_to_503(
     app: FastAPI = _load_api().app
     client = TestClient(app)
     body = {
-        "run_id": "run-test",
+        "run_id": "00000000000000000000000000000abc",
         "records": [record.model_dump(mode="json") for record in trace_pass],
     }
 

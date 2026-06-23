@@ -177,6 +177,9 @@ Environment=NODE_ENV=production
 # fetches hang to the abort timeout and fall back to mock. 127.0.0.1 is direct.
 Environment=FLIGHT_RECORDER_INTERNAL_URL=http://127.0.0.1:8001
 Environment=EVAL_ENGINE_INTERNAL_URL=http://127.0.0.1:8000
+# Shared secret so server-side fetches authenticate to the protected eval/flight
+# APIs (X-Sentinel-Secret). Set to the same value as /srv/sentinel/.env FORGE_REMOTE_SECRET.
+Environment=FORGE_REMOTE_SECRET=__SET_FROM_ENV__
 ExecStart=/usr/bin/node /srv/sentinel/dashboard/node_modules/next/dist/bin/next start -p 3001
 Restart=always
 RestartSec=5
