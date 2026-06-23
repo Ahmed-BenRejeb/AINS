@@ -72,7 +72,11 @@ Legend: ✅ done & live · 🟦 built, Forge-cloud deploy pending · ⬜ not don
 | Evaluation metric | Should | ✅ | the RCA agent is itself measured by UC1 (pass^k + dimensions) |
 | Graceful degradation | (key) | ✅ | `flag_for_human` below confidence thresholds; never auto-acts when unsure |
 
-**All UC3 criteria met at the backend + agent level. The Rovo agent is registered (real app ARI) and the compute + Jira/Confluence read-write are live; the final `forge deploy`/`install` to the Atlassian cloud is the deployment step that remains (🟦).**
+**All UC3 criteria met and live, including the Forge cloud deploy.** The "Sentinel
+Incident Responder" Rovo agent (app ARI `a5a1106b-…`) is **deployed** (development
+env, v2.2.0) and **installed on both Jira and Confluence** at
+`ahmedains.atlassian.net` (status *Up-to-date*), with `FORGE_REMOTE_URL` +
+(encrypted) `FORGE_REMOTE_SECRET` set so it calls the live backend.
 
 ---
 
@@ -108,13 +112,12 @@ Legend: ✅ done & live · 🟦 built, Forge-cloud deploy pending · ⬜ not don
 
 | Gap | Impact | Path |
 |---|---|---|
-| **Forge cloud deploy** of the Rovo agent (`forge deploy`/`install`) | The agent's native in-Atlassian UI isn't live (the backend + read/write are) | Run `forge deploy --environment development` + `forge install` from a workstation with an Atlassian login |
 | **Larger judge model** | The free 8B judge is noisier (more `uncertain`), visible in pass^k | Point `CF_AI_MODEL_MAIN` at a stronger model for the demo; keep 8B for cost |
 | **Richer runbook content** | Templated seed runbooks cap incident→runbook cosine ~0.71 (handled with a 0.60 floor) | Re-seed real remediation content |
 | **External enterprise sign-off** (bonus) | Not yet collected | Hand `validation_guide.md` to one platform owner to run + fill the remarks table |
 | **Public-API auth** (security) | Addressed in the security pass — see `docs/security_audit.md` | — |
 
-**Bottom line:** every **Must** and every **Should** across UC1/UC2/UC3 is now met
-(including mid-replay divergence injection); the only remaining items are
-*deployment/process*, not capability — the Forge cloud install and an external
-engineer's sign-off on `docs/validation_guide.md`.
+**Bottom line:** every **Must** and every **Should** across UC1/UC2/UC3 is met and
+live — including mid-replay divergence injection **and the Forge cloud deploy/install**
+(the Rovo agent is installed on Jira + Confluence). The only open item is the optional
+bonus of an external engineer's sign-off on `docs/validation_guide.md`.
