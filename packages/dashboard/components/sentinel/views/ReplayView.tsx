@@ -9,27 +9,32 @@ import {
   Link2,
   Loader2,
   ShieldCheck,
+  Film,
 } from "lucide-react";
 import { PageTransition, motion } from "../motion";
 import { PageHeader } from "../PageHeader";
+import { StepTimeline } from "../StepTimeline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { BisectResult, Loaded, ReplayResult } from "@/lib/types";
+import type { BisectResult, Loaded, ReplayResult, RunDetail } from "@/lib/types";
 import { cn, truncateId, withMock } from "@/lib/utils";
 
 /**
- * Replay screen: shows the replay deep-link, launches a deterministic replay
- * (`POST /api/replay`) and a two-run bisect (`POST /api/bisect`), and renders the
- * result (clean replay / divergences, or the first diverging step). `mock` is
- * threaded to the API routes so demo mode returns fixtures.
+ * Replay screen: shows the recorded trajectory that replay re-executes, the replay
+ * deep-link, launches a deterministic replay (`POST /api/replay`) and a two-run
+ * bisect (`POST /api/bisect`), and renders the result (clean replay / divergences,
+ * or the first diverging step). `mock` is threaded to the API routes so demo mode
+ * returns fixtures.
  */
 export function ReplayView({
   runId,
   replayLink,
+  detail,
   mock,
 }: {
   runId: string;
   replayLink: string;
+  detail?: RunDetail;
   mock: boolean;
 }) {
   const [replay, setReplay] = useState<Loaded<ReplayResult> | null>(null);
@@ -78,6 +83,37 @@ export function ReplayView({
         backHref={withMock(`/runs/${runId}`, mock)}
         backLabel="Back to trace"
       />
+
+      {/* Recorded trajectory — what replay re-executes */}
+      {detail && detail.trace.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <Film className="h-4 w-4 text-muted-foreground" aria-hidden />
+              Recorded trajectory
+              <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
+                {detail.trace.length} steps
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              These are the exact steps on tape. Launching replay re-executes them from the
+              cassette and verifies each against its hash-chained audit record, hitting{" "}
+              <span className="font-medium text-foreground">no live APIs</span>.
+            </p>
+            {detail.manifest && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Stat label="Cassette" value={detail.manifest.cassette_id ? "stored" : "-"} />
+                <Stat label="Steps" value={String(detail.manifest.step_count)} />
+                <Stat label="Mode" value={detail.manifest.flight_mode} />
+                <Stat label="Status" value={detail.manifest.status} />
+              </div>
+            )}
+            <StepTimeline trace={detail.trace} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Replay link */}
       <Card>
