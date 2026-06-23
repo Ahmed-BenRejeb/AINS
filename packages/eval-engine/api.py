@@ -11,7 +11,10 @@ Run locally::
 
 from __future__ import annotations
 
+import hmac
 import logging
+import os
+import re
 
 import httpx
 from eval_engine.drift.detector import detect_drift
@@ -21,7 +24,7 @@ from eval_engine.models import GoldCase
 from eval_engine.trace_loader import load_trace
 from eval_engine.verdict_store import get_verdict, list_verdicts
 from eval_engine.verdicts.reporter import evaluate_gold_set, evaluate_run
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from trace_core import (
@@ -56,6 +59,38 @@ async def cf_upstream_error_handler(request: Request, exc: httpx.HTTPStatusError
         detail = f"upstream CF Workers AI error (status {status}); retry later"
     logger.warning("upstream CF Workers AI %s on %s: %s", status, request.url.path, detail)
     return JSONResponse(status_code=503, content={"detail": detail})
+
+
+def require_secret(x_sentinel_secret: str | None = Header(default=None)) -> None:
+    """Shared-secret gate for the public API (constant-time compare).
+
+    Enforced only when ``FORGE_REMOTE_SECRET`` is configured (it is on the VM); in
+    local/test environments without the secret the check is a no-op so the test
+    suite and dev servers stay open. ``/health`` is intentionally left unprotected
+    for tunnel liveness probes.
+    """
+    expected = os.environ.get("FORGE_REMOTE_SECRET")
+    if not expected:
+        return
+    if not x_sentinel_secret or not hmac.compare_digest(x_sentinel_secret, expected):
+        raise HTTPException(status_code=401, detail="missing or invalid X-Sentinel-Secret")
+
+
+_RUN_ID_RE = re.compile(r"^[0-9a-fA-F]{32}$|^[0-9a-fA-F-]{36}$")
+
+
+def valid_run_id(run_id: str) -> str:
+    """Validate ``run_id`` is a uuid4 hex (or dashed uuid) before use as a key/path.
+
+    Run ids become MinIO object keys (``{run_id}.json``) and D1 query params, so
+    rejecting anything that is not a uuid removes a path-traversal / injection sink.
+    """
+    if not _RUN_ID_RE.match(run_id):
+        raise HTTPException(status_code=400, detail="run_id must be a uuid")
+    return run_id
+
+
+_AUTH = [Depends(require_secret)]
 
 
 class EvaluateRequest(BaseModel):
@@ -118,38 +153,41 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/verdicts")
+@app.get("/verdicts", dependencies=_AUTH)
 def get_verdicts(limit: int = 50) -> list[EvalVerdict]:
     """List the most recent persisted verdicts (newest first) from D1.
 
     Powers the dashboard overview + verdict list. Returns ``[]`` when D1 is
     unconfigured or empty, so the UI degrades cleanly rather than erroring.
     """
-    return list_verdicts(limit)
+    return list_verdicts(min(max(limit, 1), 500))
 
 
-@app.get("/verdicts/{run_id}")
+@app.get("/verdicts/{run_id}", dependencies=_AUTH)
 def get_verdict_by_run(run_id: str) -> EvalVerdict:
     """Return the most recent persisted verdict for ``run_id`` (404 if none)."""
-    verdict = get_verdict(run_id)
+    verdict = get_verdict(valid_run_id(run_id))
     if verdict is None:
         raise HTTPException(status_code=404, detail=f"no verdict persisted for run {run_id}")
     return verdict
 
 
-@app.post("/evaluate")
+@app.post("/evaluate", dependencies=_AUTH)
 async def evaluate(request: EvaluateRequest) -> EvalVerdict:
     """Evaluate one trial of a run and return its verdict."""
+    valid_run_id(request.run_id)
     records = await _resolve_records(request)
     return await evaluate_run(request.run_id, request.trial_number, records)
 
 
-@app.post("/evaluate/batch")
+@app.post("/evaluate/batch", dependencies=_AUTH)
 async def evaluate_batch(request: BatchRequest) -> BatchResult:
     """Evaluate every run in a batch and aggregate the pass^k reliability metric."""
+    if len(request.run_ids) > 64:
+        raise HTTPException(status_code=400, detail="batch too large (max 64 run_ids)")
     verdicts: list[EvalVerdict] = []
     for trial_number, run_id in enumerate(request.run_ids):
-        records = await load_trace(run_id)
+        records = await load_trace(valid_run_id(run_id))
         verdicts.append(await evaluate_run(run_id, trial_number, records))
     results: list[bool] = [v.verdict == "pass" for v in verdicts]
     return BatchResult(
@@ -159,7 +197,7 @@ async def evaluate_batch(request: BatchRequest) -> BatchResult:
     )
 
 
-@app.post("/drift")
+@app.post("/drift", dependencies=_AUTH)
 async def drift(request: DriftRequest) -> DriftReport:
     """Detect behavioural drift between a baseline and a current window of runs."""
     return await detect_drift(
@@ -170,7 +208,7 @@ async def drift(request: DriftRequest) -> DriftReport:
     )
 
 
-@app.post("/evaluator-quality")
+@app.post("/evaluator-quality", dependencies=_AUTH)
 async def evaluator_quality(request: EvaluatorQualityRequest) -> EvaluatorQuality:
     """Score the evaluator against a human-labelled gold set (judge-vs-human κ)."""
     return await evaluate_gold_set(request.cases)

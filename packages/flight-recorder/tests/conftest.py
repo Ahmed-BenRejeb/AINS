@@ -19,8 +19,10 @@ from flight_recorder.storage import d1_client, minio_client
 
 @pytest.fixture(autouse=True)
 def audit_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Provide a deterministic HMAC secret for every test."""
+    """Provide a deterministic HMAC secret; leave the API auth secret unset (open)."""
     monkeypatch.setenv("AUDIT_HMAC_KEY", "test-secret-key-0123456789abcdef")
+    # Shared-secret unset → the API auth gate is a no-op in tests (routes stay open).
+    monkeypatch.delenv("FORGE_REMOTE_SECRET", raising=False)
 
 
 @pytest.fixture(autouse=True)

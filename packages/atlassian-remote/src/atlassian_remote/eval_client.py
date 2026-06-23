@@ -18,9 +18,17 @@ import logging
 import httpx
 from trace_core import EvalVerdict
 
-from .config import EVAL_TIMEOUT_SECONDS, eval_engine_url
+from .config import EVAL_TIMEOUT_SECONDS, eval_engine_url, forge_remote_secret
 
 logger = logging.getLogger("atlassian_remote.eval_client")
+
+
+def _auth_headers() -> dict[str, str]:
+    """Shared-secret header for the eval engine's protected API (empty if unset)."""
+    try:
+        return {"X-Sentinel-Secret": forge_remote_secret()}
+    except KeyError:
+        return {}
 
 
 async def request_evaluation(run_id: str) -> EvalVerdict | None:
@@ -38,6 +46,7 @@ async def request_evaluation(run_id: str) -> EvalVerdict | None:
             response = await client.post(
                 f"{eval_engine_url()}/evaluate",
                 json={"run_id": run_id},
+                headers=_auth_headers(),
             )
             response.raise_for_status()
             return EvalVerdict.model_validate(response.json())

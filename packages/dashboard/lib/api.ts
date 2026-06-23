@@ -58,6 +58,10 @@ const FLIGHT_RECORDER_API =
   process.env.FLIGHT_RECORDER_INTERNAL_URL ?? FLIGHT_RECORDER_URL;
 const EVAL_ENGINE_API = process.env.EVAL_ENGINE_INTERNAL_URL ?? EVAL_ENGINE_URL;
 
+// Shared secret for the protected services (server-side only; never sent to the
+// browser). Sent as X-Sentinel-Secret on every server-side fetch. Empty in dev.
+const API_SECRET = process.env.FORGE_REMOTE_SECRET ?? "";
+
 const FETCH_TIMEOUT_MS = 5000;
 // Replay/bisect re-drive a whole cassette, so they can legitimately take longer
 // than a list/detail GET. Give those POSTs a wider budget before falling back.
@@ -76,7 +80,11 @@ async function fetchJson<T>(
       ...init,
       cache: "no-store",
       signal: controller.signal,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(API_SECRET ? { "X-Sentinel-Secret": API_SECRET } : {}),
+        ...(init?.headers ?? {}),
+      },
     });
     if (!res.ok) {
       throw new Error(`${url} → HTTP ${res.status}`);

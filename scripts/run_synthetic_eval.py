@@ -40,6 +40,10 @@ EVAL_API    = os.environ.get("EVAL_API_URL", "http://localhost:8000")
 FLIGHT_API  = os.environ.get("FLIGHT_API_URL", "http://localhost:8001")
 REPORT_PATH = "docs/eval_report.md"
 
+# Shared-secret header for the protected eval/flight APIs (no-op if unset).
+_SECRET = os.environ.get("FORGE_REMOTE_SECRET", "")
+HEADERS = {"X-Sentinel-Secret": _SECRET} if _SECRET else {}
+
 
 # ── Data Classes ─────────────────────────────────────────────────────────────
 
@@ -104,7 +108,7 @@ def get_all_runs() -> list[dict]:
     The flight recorder ``GET /runs`` returns a bare JSON array of manifest rows
     (not an object with a ``runs`` key), so the response is used directly.
     """
-    r = requests.get(f"{FLIGHT_API}/runs")
+    r = requests.get(f"{FLIGHT_API}/runs", headers=HEADERS)
     r.raise_for_status()
     payload = r.json()
     # Tolerate both shapes: a bare list (current API) or {"runs": [...]}.
@@ -115,7 +119,7 @@ def evaluate_run(run_id: str, k: int) -> list[dict]:
     """Evaluate a run k times and return all trial verdicts."""
     verdicts = []
     for trial in range(k):
-        r = requests.post(f"{EVAL_API}/evaluate", json={
+        r = requests.post(f"{EVAL_API}/evaluate", headers=HEADERS, json={
             "run_id": run_id,
             "trial_number": trial + 1,
         })
