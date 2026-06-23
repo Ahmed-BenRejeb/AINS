@@ -1,0 +1,60 @@
+# Template for the non-secret config every Sentinel service reads.
+# Copy to configmap.yaml and fill in (or run deploy/k8s/gen-config.sh to generate
+# it from the repo .env). configmap.yaml is gitignored — only this template is committed.
+#
+# The four in-cluster URLs (xqdrant / eval-engine / flight-recorder / minio) are
+# Kubernetes Service DNS names and should NOT be changed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sentinel-config
+  namespace: sentinel
+data:
+  # ── In-cluster service DNS (fixed — these override the .env localhost values) ──
+  XQDRANT_URL: "http://xqdrant:6333"
+  EVAL_ENGINE_URL: "http://eval-engine:8000"
+  FLIGHT_RECORDER_URL: "http://flight-recorder:8001"
+  BLOB_STORAGE_ENDPOINT: "http://minio:9000"
+  # Dashboard server-side fetch bases:
+  EVAL_ENGINE_INTERNAL_URL: "http://eval-engine:8000"
+  FLIGHT_RECORDER_INTERNAL_URL: "http://flight-recorder:8001"
+
+  # ── Cloudflare Workers AI model ids ──
+  CF_AI_MODEL_MAIN: "@cf/meta/llama-3.1-8b-instruct-fp8-fast"
+  CF_AI_MODEL_SAFETY: "@cf/meta/llama-guard-3-8b"
+  CF_AI_MODEL_EMBED: "@cf/baai/bge-base-en-v1.5"
+  CF_VECTORIZE_INDEX: "sentinel-embeddings"
+
+  # ── Blob storage (MinIO) — secret key lives in the Secret ──
+  BLOB_STORAGE_BUCKET: "sentinel-cassettes"
+  BLOB_STORAGE_ACCESS_KEY: "minio"
+  BLOB_STORAGE_USE_SSL: "false"
+
+  # ── xqdrant collections ──
+  XQDRANT_INCIDENTS_COLLECTION: "incidents"
+  XQDRANT_RUNBOOKS_COLLECTION: "runbooks"
+
+  # ── Atlassian (token lives in the Secret) ──
+  ATLASSIAN_SITE: "https://your-site.atlassian.net"
+  ATLASSIAN_EMAIL: "you@example.com"
+  ATLASSIAN_JSM_SERVICE_DESK_ID: "1"
+  ATLASSIAN_JIRA_PROJECT_KEY: "AO"
+  ATLASSIAN_DUPLICATE_LINK_TYPE: "Duplicate"
+
+  # ── Eval-engine thresholds ──
+  EVAL_CONFIDENCE_THRESHOLD: "0.70"
+  VECTOR_SIMILARITY_THRESHOLD: "0.75"
+  RUNBOOK_SIMILARITY_THRESHOLD: "0.60"
+
+  # ── Flight recorder ──
+  FLIGHT_MODE: "record"
+
+  # ── Langfuse (keys live in the Secret) ──
+  LANGFUSE_HOST: "https://langfuse.example.com"
+  LANGFUSE_HOST_INTERNAL: "http://langfuse:3000"
+
+  # ── Misc ──
+  FORGE_REMOTE_URL: "http://atlassian-remote:8080"
+  DASHBOARD_URL: "http://dashboard:3001"
+  OTEL_SEMCONV_STABILITY_OPT_IN: "gen_ai_latest_experimental"
+  LOG_LEVEL: "INFO"

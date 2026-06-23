@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sentinel
+
+# configmap.yaml + secret.yaml are generated (gitignored). Run
+# `bash deploy/k8s/gen-config.sh` before `kubectl apply -k deploy/k8s`.
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - xqdrant.yaml
+  - minio.yaml
+  - eval-engine.yaml
+  - flight-recorder.yaml
+  - atlassian-remote.yaml
+  - dashboard.yaml

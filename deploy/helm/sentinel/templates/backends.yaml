@@ -1,0 +1,93 @@
+{{- if .Values.backends.xqdrant.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xqdrant
+  namespace: {{ .Release.Namespace }}
+  labels: { app: xqdrant }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: xqdrant }
+  template:
+    metadata:
+      labels: { app: xqdrant }
+    spec:
+      containers:
+        - name: xqdrant
+          image: {{ .Values.backends.xqdrant.image }}
+          ports:
+            - containerPort: {{ .Values.backends.xqdrant.port }}
+          volumeMounts:
+            - { name: storage, mountPath: /qdrant/storage }
+          readinessProbe:
+            httpGet: { path: /readyz, port: {{ .Values.backends.xqdrant.port }} }
+            initialDelaySeconds: 5
+      volumes:
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xqdrant
+  namespace: {{ .Release.Namespace }}
+  labels: { app: xqdrant }
+spec:
+  selector: { app: xqdrant }
+  ports:
+    - name: http
+      port: {{ .Values.backends.xqdrant.port }}
+      targetPort: {{ .Values.backends.xqdrant.port }}
+{{- end }}
+{{- if .Values.backends.minio.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: {{ .Release.Namespace }}
+  labels: { app: minio }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: minio }
+  template:
+    metadata:
+      labels: { app: minio }
+    spec:
+      containers:
+        - name: minio
+          image: {{ .Values.backends.minio.image }}
+          args: ["server", "/data", "--console-address", ":{{ .Values.backends.minio.consolePort }}"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                configMapKeyRef: { name: sentinel-config, key: BLOB_STORAGE_ACCESS_KEY }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: sentinel-secrets, key: BLOB_STORAGE_SECRET_KEY }
+          ports:
+            - { containerPort: {{ .Values.backends.minio.apiPort }}, name: api }
+            - { containerPort: {{ .Values.backends.minio.consolePort }}, name: console }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          readinessProbe:
+            httpGet: { path: /minio/health/ready, port: {{ .Values.backends.minio.apiPort }} }
+            initialDelaySeconds: 5
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: {{ .Release.Namespace }}
+  labels: { app: minio }
+spec:
+  selector: { app: minio }
+  ports:
+    - { name: api, port: {{ .Values.backends.minio.apiPort }}, targetPort: {{ .Values.backends.minio.apiPort }} }
+    - { name: console, port: {{ .Values.backends.minio.consolePort }}, targetPort: {{ .Values.backends.minio.consolePort }} }
+{{- end }}

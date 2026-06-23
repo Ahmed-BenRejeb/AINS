@@ -1,0 +1,29 @@
+{{- if .Values.keda.enabled }}
+# Requires KEDA installed in the cluster + metrics-server. Autoscales the target
+# service on CPU utilization (see deploy/README.md).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ .Values.keda.target }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.keda.target }}
+    {{- include "sentinel.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ .Values.keda.target }}
+  minReplicaCount: {{ .Values.keda.minReplicas }}
+  maxReplicaCount: {{ .Values.keda.maxReplicas }}
+  pollingInterval: 15
+  cooldownPeriod: 60
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 60
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "{{ .Values.keda.cpuUtilization }}"
+{{- end }}

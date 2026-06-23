@@ -1,0 +1,50 @@
+# Flight Recorder (UC2) — record / replay / bisect.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flight-recorder
+  namespace: sentinel
+  labels: { app: flight-recorder }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: flight-recorder }
+  template:
+    metadata:
+      labels: { app: flight-recorder }
+    spec:
+      containers:
+        - name: flight-recorder
+          image: sentinel-python:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            ["uvicorn", "api:app", "--app-dir", "packages/flight-recorder", "--host", "0.0.0.0", "--port", "8001"]
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - configMapRef: { name: sentinel-config }
+            - secretRef: { name: sentinel-secrets }
+          readinessProbe:
+            httpGet: { path: /health, port: 8001 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8001 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flight-recorder
+  namespace: sentinel
+  labels: { app: flight-recorder }
+spec:
+  selector: { app: flight-recorder }
+  ports:
+    - name: http
+      port: 8001
+      targetPort: 8001
