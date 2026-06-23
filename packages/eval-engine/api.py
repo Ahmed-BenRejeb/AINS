@@ -212,3 +212,16 @@ async def drift(request: DriftRequest) -> DriftReport:
 async def evaluator_quality(request: EvaluatorQualityRequest) -> EvaluatorQuality:
     """Score the evaluator against a human-labelled gold set (judge-vs-human κ)."""
     return await evaluate_gold_set(request.cases)
+
+
+@app.get("/evaluator-quality/demo", dependencies=_AUTH)
+async def evaluator_quality_demo() -> EvaluatorQuality:
+    """Run the evaluator over the built-in demo gold set and report Cohen's κ.
+
+    Powers the dashboard "Evaluator quality" screen: a small, self-contained gold
+    set (2 expected-pass + 2 expected-fail synthetic runs) scored judge-vs-human, so
+    the metric is demonstrable without a stored ground-truth label set.
+    """
+    from eval_engine.gold_demo import demo_gold_set
+
+    return await evaluate_gold_set(demo_gold_set())

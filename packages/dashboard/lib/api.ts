@@ -18,6 +18,8 @@
 
 import {
   mockBisect,
+  mockDrift,
+  mockEvaluatorQuality,
   mockReplay,
   mockRunDetail,
   mockRuns,
@@ -27,7 +29,9 @@ import {
 } from "./mock-data";
 import type {
   BisectResult,
+  DriftReport,
   EvalVerdict,
+  EvaluatorQuality,
   Loaded,
   OverviewStats,
   ReplayResult,
@@ -307,6 +311,58 @@ export async function postBisect(
     return live(result);
   } catch (err) {
     return fallback(mockBisect, err);
+  }
+}
+
+// ─── Drift (UC1 §2.3) ───────────────────────────────────────────────────────
+
+/**
+ * Behavioural drift across two windows of evaluated runs. Splits the persisted
+ * verdicts into an older "baseline" half and a newer "current" half and asks the
+ * eval engine to compare them (`POST /drift`). Pure verdict/score math (no agent
+ * outputs supplied), so it costs no neurons. Needs >=4 verdicts to form windows.
+ */
+export async function getDrift(useMock: boolean): Promise<Loaded<DriftReport>> {
+  if (useMock) return mock(mockDrift);
+  try {
+    const verdicts = await fetchJson<EvalVerdict[]>(`${EVAL_ENGINE_API}/verdicts?limit=200`);
+    if (verdicts.length < 4) {
+      return fallback(mockDrift, "not enough evaluated runs yet to form two drift windows");
+    }
+    const half = Math.floor(verdicts.length / 2);
+    const current = verdicts.slice(0, half); // newest
+    const baseline = verdicts.slice(half); // oldest
+    const report = await fetchJson<DriftReport>(
+      `${EVAL_ENGINE_API}/drift`,
+      { method: "POST", body: JSON.stringify({ baseline, current }) },
+      REPLAY_TIMEOUT_MS,
+    );
+    return live(report);
+  } catch (err) {
+    return fallback(mockDrift, err);
+  }
+}
+
+// ─── Evaluator quality (UC1 §2.4) ───────────────────────────────────────────
+
+/**
+ * Run the evaluator over the built-in demo gold set and report judge-vs-human
+ * Cohen's κ (`GET /evaluator-quality/demo`). Re-judges a few cases, so it is
+ * button-triggered (wider timeout) rather than fetched on page load.
+ */
+export async function getEvaluatorQuality(
+  useMock: boolean,
+): Promise<Loaded<EvaluatorQuality>> {
+  if (useMock) return mock(mockEvaluatorQuality);
+  try {
+    const result = await fetchJson<EvaluatorQuality>(
+      `${EVAL_ENGINE_API}/evaluator-quality/demo`,
+      {},
+      REPLAY_TIMEOUT_MS,
+    );
+    return live(result);
+  } catch (err) {
+    return fallback(mockEvaluatorQuality, err);
   }
 }
 

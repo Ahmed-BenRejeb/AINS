@@ -11,7 +11,9 @@
 import type {
   AnalyzeResult,
   BisectResult,
+  DriftReport,
   EvalVerdict,
+  EvaluatorQuality,
   OverviewStats,
   ReplayResult,
   RunDetail,
@@ -580,5 +582,34 @@ export function mockAnalyzeResult(): AnalyzeResult {
     replay_link: `https://flight.ahmedxsaad.me/replay/${RUN_IDS.pass1}`,
   };
 }
+
+/** Fixture drift report (used for ?mock and as a clean fallback). */
+export const mockDrift: DriftReport = {
+  baseline_run_count: 5,
+  current_run_count: 5,
+  pass_rate_baseline: 0.8,
+  pass_rate_current: 0.4,
+  pass_rate_delta: -0.4,
+  mean_score_baseline: 0.86,
+  mean_score_current: 0.71,
+  dimension_deltas: { correctness: -0.18, efficiency: -0.05, reasoning_quality: -0.12, safety: 0.0 },
+  most_shifted_dimension: "correctness",
+  semantic_drift: 0.21,
+  drift_detected: true,
+  drift_score: 0.4,
+  summary:
+    "Drift detected: pass rate 80% -> 40% (-40%); largest dimension shift: correctness -0.18.",
+};
+
+/** Fixture evaluator-quality report (judge-vs-human Cohen's kappa). */
+export const mockEvaluatorQuality: EvaluatorQuality = {
+  n_cases: 4,
+  n_agreements: 3,
+  accuracy: 0.75,
+  cohen_kappa: 0.6,
+  per_label_recall: { pass: 1.0, fail: 0.5 },
+  agreement_band: "moderate",
+  summary: "Evaluator agreed with 3/4 human gold verdicts (accuracy 75%); Cohen's kappa 0.60 (moderate).",
+};
 
 export { RUN_IDS };
