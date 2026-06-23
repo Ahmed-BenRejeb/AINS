@@ -10,10 +10,12 @@ network.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import httpx
 from pydantic import BaseModel, Field
 
+from ..config import CF_API_HOST
 from ..exceptions import CassetteMissError
 from ..proxy import cassette
 from ..proxy.llm_proxy import RecordingTransport
@@ -24,6 +26,31 @@ ReplayAgent = Callable[[httpx.Client], object]
 The client's transport serves all CF Workers AI calls from the cassette, so the
 agent runs exactly as recorded without touching live APIs.
 """
+
+
+def build_tape_agent(records: list[dict[str, Any]]) -> ReplayAgent:
+    """A replay agent that re-issues a run's recorded CF HTTP calls in order.
+
+    Lets the API genuinely re-execute a recording (not just validate the cassette):
+    each ``llm_call`` record's request is reconstructed from its stored ``path`` +
+    ``body`` and re-issued through the replay-bound client, so the transport serves
+    every call from tape (zero live calls). Tool-call records are skipped (they have
+    no HTTP request). This is also what makes injection observable from the API:
+    an overridden step's response is what the re-issued call receives.
+    """
+    steps = sorted(
+        (r for r in records if r.get("kind") == "llm_call"),
+        key=lambda r: r.get("sequence", 0),
+    )
+
+    def agent(client: httpx.Client) -> None:
+        for record in steps:
+            payload = record.get("input", {})
+            path = payload.get("path", "")
+            body = payload.get("body")
+            client.post(f"https://{CF_API_HOST}{path}", json=body)
+
+    return agent
 
 
 class Divergence(BaseModel):

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
  * mock support. Body: `{ run_id: string, mock?: boolean }`. Returns a `Loaded<ReplayResult>`.
  */
 export async function POST(request: Request) {
-  let body: { run_id?: string; mock?: boolean };
+  let body: { run_id?: string; mock?: boolean; inject?: Record<number, unknown> };
   try {
     body = await request.json();
   } catch {
@@ -17,6 +17,6 @@ export async function POST(request: Request) {
   if (!body.run_id) {
     return NextResponse.json({ error: "run_id is required" }, { status: 400 });
   }
-  const result = await postReplay(body.run_id, Boolean(body.mock));
+  const result = await postReplay(body.run_id, Boolean(body.mock), body.inject);
   return NextResponse.json(result);
 }

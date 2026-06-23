@@ -147,6 +147,7 @@ export interface ReplayResult {
   live_call_count: number;
   diverged: boolean;
   divergences: Divergence[];
+  injected_steps?: number[];
 }
 
 /** Response of `POST /bisect`. */
