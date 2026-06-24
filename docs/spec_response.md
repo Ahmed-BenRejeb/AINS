@@ -5,7 +5,7 @@
 > why the approach is innovative. Companion to `docs/validation_guide.md` (how to
 > test each item) and `docs/how_it_works.md` (plain-English component guide).
 
-Legend: ✅ done & live · 🟦 built, Forge-cloud deploy pending · ⬜ not done.
+Legend: ✅ done & live · ⬜ not done.
 
 ---
 

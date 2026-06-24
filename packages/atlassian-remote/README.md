@@ -10,7 +10,7 @@ Everything that the Forge sandbox cannot run: text embedding, vector search, and
 - FastAPI server exposing `/analyze`, `/duplicates`, `/search`, `/embed`, `/health` endpoints
 - Text embedder (`@cf/baai/bge-base-en-v1.5` via Cloudflare Workers AI)
 - Vector search client (xqdrant at `localhost:6333` — incidents + runbooks collections)
-- RCA generator (CF Workers AI Llama 3.3 70B, structured Pydantic output)
+- RCA generator (CF Workers AI `@cf/meta/llama-3.1-8b-instruct-fp8-fast`, structured Pydantic output)
 - Semantic duplicate resolver (`duplicate_resolver.py` — CF Workers AI judges whether an incident duplicates a past one → `DuplicateVerdict`)
 - Shared CF Workers AI client (`cf_ai_client.py` — chat + embed; retries 429/5xx with backoff)
 - Shared Atlassian REST client (with exponential backoff for 429s)
@@ -70,15 +70,13 @@ The API verifies both on every request. Never bypass this check in production.
 ## All LLM Outputs Must Use Pydantic Models
 
 ```python
-# Import the canonical model from trace-core — never redefine it here.
+# Import the canonical model from trace-core — never redefine it locally.
 from trace_core import RcaDraft
 
-class RcaDraft(BaseModel):  # (reference — defined in trace_core.schema)
-    root_cause_hypothesis: str
-    evidence: list[str]
-    proposed_severity: Literal["critical", "high", "medium", "low"]  # trace_core.SeverityLevel
-    confidence_score: float
-    ...
+# RcaDraft fields: root_cause_hypothesis, evidence, proposed_severity (SeverityLevel),
+# confidence_score, proposed_assignee_team, duplicate_check, knowledge_gaps, ...
+raw = await cf_ai_client.cf_ai_chat(messages)
+return RcaDraft.model_validate_json(_extract_json(raw))  # strips ```json fences
 ```
 
 Never let the LLM return free text and parse it with regex. Structured output is required for the downstream eval engine to score the RCA consistently.

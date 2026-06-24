@@ -197,9 +197,9 @@ count; **Langfuse** (`langfuse.ahmedxsaad.me`): every LLM call / vector search t
 | 7 | Scalability | Concerns at 10× incident volume / concurrent runs? | | |
 | 8 | Gaps | What's missing for **your** environment? | | |
 
-**Known limitations to weigh:** (a) UC3 runs as a Forge **Remote** backend +
-registered Rovo agent; the final `forge deploy`/`install` to the Atlassian cloud is
-the remaining step (the compute + Atlassian read/write are live today). (b) Seeded
+**Known limitations to weigh:** (a) UC3's Forge Rovo agent is **fully deployed** (v2.2.0,
+installed on Jira + Confluence at ahmedains.atlassian.net — status Up-to-date;
+`forge install list` confirms). (b) Seeded
 runbooks are templated, so incident→runbook cosine tops ~0.71 (handled with a 0.60
 runbook floor; richer runbook content would lift it). (c) The judge runs on an 8B
 model for cost/speed — noisier than a frontier judge, which is itself visible in the

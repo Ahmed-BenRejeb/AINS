@@ -60,9 +60,11 @@ pnpm install
 pnpm test
 pnpm typecheck
 
-# Deploy to Atlassian dev environment
+# Already deployed (v2.2.0) and installed on Jira + Confluence at ahmedains.atlassian.net.
+# To redeploy after code changes:
 forge deploy --environment development
-forge install --environment development --site https://your-site.atlassian.net
+# forge install is idempotent — use --upgrade if already installed
+forge install --upgrade --environment development --site https://ahmedains.atlassian.net
 ```
 
 ## Critical: Atlassian Document Format (ADF)

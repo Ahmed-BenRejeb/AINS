@@ -31,7 +31,7 @@ atlassian-agent/
 ├── jest.config.js         ts-jest; roots=tests/ so the @forge/api manual mock auto-applies
 ├── .eslintrc.cjs / .prettierrc.json
 ├── src/
-│   ├── index.ts           re-exports the 6 handlers (handler: index.<fn>)
+│   ├── index.ts           re-exports the 7 handlers (handler: index.<fn>)
 │   ├── actions/
 │   │   ├── fetchIncident.ts            (Atlassian-native read)
 │   │   ├── searchSimilarIncidents.ts   (→ remote /search, index=incidents)

@@ -8,7 +8,7 @@ Consumes OTel GenAI traces from the flight recorder and produces structured, aud
 ## What Goes Here
 
 - The code grader (schema validation, tool-call correctness, outcome verification, loop + token-budget checks)
-- The LLM judge (**CF Workers AI Llama 3.3 70B** as judge — never Anthropic/OpenAI — with rubric scoring and mandatory position-bias calibration)
+- The LLM judge (**CF Workers AI `@cf/meta/llama-3.1-8b-instruct-fp8-fast`** — never Anthropic/OpenAI — with rubric scoring and mandatory position-bias calibration)
 - The safety pre-filter (Llama Guard 3 via Cloudflare Workers AI)
 - The DAG-based failure attributor (retrieval → planning → execution; per-step credit assignment)
 - The `pass^k` metric calculator (reliability metric from τ-bench; `all()` not `any()`)
@@ -43,13 +43,14 @@ Standard src-layout: the importable package is `src/eval_engine/`
 
 ```
 eval-engine/
-├── api.py                       FastAPI server (port 8000)
+├── api.py                       FastAPI server (port 8000) — all routes require X-Sentinel-Secret except /health
 ├── src/eval_engine/
 │   ├── cf_ai_client.py          async CF Workers AI: chat / embed / safety (429/5xx retry+backoff)
 │   ├── config.py                env-driven config: models, thresholds, Atlassian fields
 │   ├── models.py                SafetyResult, CodeGraderResult, JudgeVerdict
 │   ├── transcript.py            render TraceRecords → transcript for the graders
 │   ├── cassette_store.py        boto3 read of the full run cassette from MinIO
+│   ├── verdict_store.py         best-effort D1 write of EvalVerdict → eval_verdicts table
 │   ├── trace_loader.py          load a run trace — cassette first, D1 previews fallback
 │   ├── graders/
 │   │   ├── code_grader.py       fast deterministic checks
@@ -76,8 +77,12 @@ eval-engine/
 ```bash
 make test-uc1                                   # pytest + coverage (from repo root)
 cd packages/eval-engine
-uv run uvicorn api:app --reload --port 8000     # /evaluate[/batch], /drift, /evaluator-quality, /verdicts, /health
+uv run uvicorn api:app --reload --port 8000     # /evaluate[/batch], /drift, /evaluator-quality[/demo], /verdicts[/{id}], /health
 ```
+
+All routes except `/health` require the `X-Sentinel-Secret` header (set to `FORGE_REMOTE_SECRET`).
+The `/evaluator-quality/demo` GET endpoint re-judges a built-in gold set and returns `EvaluatorQuality`
+(Cohen's κ = 0.60 live, Landis & Koch "moderate").
 
 ```python
 # Evaluate one trace programmatically → one EvalVerdict

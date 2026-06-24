@@ -136,9 +136,10 @@ export function ReplayView({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              These are the exact steps on tape. Launching replay re-executes them from the
-              cassette and verifies each against its hash-chained audit record, hitting{" "}
-              <span className="font-medium text-foreground">no live APIs</span>.
+              The full recorded workflow. <span className="font-medium text-foreground">HTTP steps</span>{" "}
+              (embedding + chat) are stored in the cassette and replayed byte-for-byte hitting zero live
+              APIs. Tool-call steps (vector search) are in the audit trail but are not HTTP calls, so
+              they are not in the cassette and do not count toward the replay total.
             </p>
             {detail.manifest && (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -200,12 +201,15 @@ export function ReplayView({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Override a recorded model response and replay. The override is served from the harness
-              instead of the tape, with{" "}
-              <span className="font-medium text-foreground">zero live API calls</span>. If the agent
-              branches on this value it takes a new path (an unrecorded request shows up as a
-              divergence); on a run whose model calls are independent the override is served and the
-              run still completes, proving the inject hook.
+              Override a recorded response and replay. The harness serves the injected value instead
+              of the tape at the chosen step.{" "}
+              <span className="font-medium text-foreground">
+                Confirmed by <code className="font-mono text-xs">injected_steps</code> in the result.
+              </span>{" "}
+              Divergence shows up when the agent branches based on the injected value (an unrecorded
+              next request). For a fixed-order replay — where subsequent requests are predetermined —
+              the injection is applied and confirmed, but no divergence occurs (the run still
+              completes cleanly from tape).
             </p>
             <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
               <label className="space-y-1.5">
@@ -261,10 +265,12 @@ export function ReplayView({
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Compare a known-good run against a known-bad one to find the first diverging step.
-            Regression triage for agent behaviour. Paste{" "}
-            <span className="font-medium text-foreground">two different run ids</span> (the same id
-            on both sides is always identical).
+            Compare two cassettes step by step to find the first diverging step. Best used with two
+            runs that analyzed the{" "}
+            <span className="font-medium text-foreground">same incident</span> but at different times
+            or model versions — then divergence at step 1 (chat) means the LLM gave a different
+            answer. Runs that analyzed different incidents will always diverge at step 0 (different
+            embedding input), which is expected and not a bug.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1.5">
@@ -349,11 +355,11 @@ function ReplayResultPanel({ result }: { result: Loaded<ReplayResult> }) {
     <div className="space-y-3">
       <ResultBanner
         ok={clean}
-        okText={`Replay complete. ${r.live_call_count} live API calls, ${r.recorded_steps} steps reproduced exactly.`}
+        okText={`Replay complete. ${r.recorded_steps} HTTP steps served from cassette, 0 live API calls.`}
         badText={`Replay diverged. ${r.divergences.length} divergence${r.divergences.length === 1 ? "" : "s"} detected.`}
       />
       <div className="grid grid-cols-3 gap-3">
-        <Stat label="Recorded steps" value={String(r.recorded_steps)} />
+        <Stat label="HTTP steps (cassette)" value={String(r.recorded_steps)} />
         <Stat
           label="Live API calls"
           value={String(r.live_call_count)}
@@ -392,8 +398,27 @@ function ReplayResultPanel({ result }: { result: Loaded<ReplayResult> }) {
   );
 }
 
-/** Pretty-print a step output, capped so a 768-dim embedding vector can't flood the UI. */
+/**
+ * Pretty-print a step output for the bisect diff panel.
+ * Detects CF Workers AI embedding responses (body.result.data is a float[][]) and
+ * replaces the raw vectors with a concise summary so the panel stays readable.
+ */
 function previewOutput(output: unknown): string {
+  if (output && typeof output === "object") {
+    const out = output as Record<string, unknown>;
+    // Cassette step entry: {status_code, is_json, body: {result: {data: float[][]}}}
+    const body = out.body as Record<string, unknown> | undefined;
+    const result = body?.result as Record<string, unknown> | undefined;
+    if (Array.isArray(result?.data)) {
+      const vecs = result.data as unknown[][];
+      const dims = Array.isArray(vecs[0]) ? vecs[0].length : "?";
+      return `embedding: ${vecs.length} vector(s), ${dims}-dim\n(raw floats omitted for readability)`;
+    }
+    // Chat response: body.result.response is a string
+    if (typeof result?.response === "string") {
+      return `chat response:\n${result.response.slice(0, 400)}${result.response.length > 400 ? "\n… (truncated)" : ""}`;
+    }
+  }
   const json = JSON.stringify(output, null, 2);
   if (json === undefined) return "-";
   return json.length > 600 ? `${json.slice(0, 600)}\n… (truncated)` : json;
@@ -401,6 +426,7 @@ function previewOutput(output: unknown): string {
 
 function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
   const b = result.data;
+  const requestDiverge = b.reason === "request diverged (different step_key)";
   return (
     <div className="space-y-3">
       <ResultBanner
@@ -409,9 +435,16 @@ function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
         badText={`First divergence at step ${b.first_diverging_step ?? "?"}.`}
       />
       {!b.identical && (
-        <div className="rounded-md border border-hairline bg-canvas p-4">
+        <div className="rounded-md border border-hairline bg-canvas p-4 space-y-3">
           <div className="text-sm text-foreground/90">{b.reason}</div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {requestDiverge && (
+            <p className="text-xs text-muted-foreground border-l-2 border-accent/40 pl-3">
+              The request hash at this step differs — the two runs sent different inputs (e.g.
+              different incident text at step 0). For a response-level divergence (same input,
+              different model output), compare two runs that analyzed the same incident.
+            </p>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <div className="text-xs uppercase tracking-wide text-verdict-pass">Good</div>
               <div className="mt-1 font-mono text-xs text-muted-foreground">

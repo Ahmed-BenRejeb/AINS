@@ -79,23 +79,27 @@
                └───────────────────────────────────────────────┘
                            │
                ┌───────────▼───────────────────────────────────┐
-               │   packages/dashboard  (Next.js)                │
-               │                                               │
-               │   /traces     → execution graphs              │
-               │   /verdicts   → verdict detail + attribution  │
-               │   /replay     → step-by-step diff + inject    │
-               │   /incidents  → JSM incident + RCA status     │
-               └───────────────────────────────────────────────┘
+               │   packages/dashboard  (Next.js — https://dashboard.ahmedxsaad.me) │
+               │                                                               │
+               │   /              → overview: stats, recent verdicts           │
+               │   /runs          → recorded runs list                         │
+               │   /runs/[id]     → execution trace (step timeline)            │
+               │   /verdicts/[id] → verdict detail + attribution               │
+               │   /replay/[id]   → replay + mid-replay inject + bisect        │
+               │   /reliability   → drift detection + evaluator quality (κ)    │
+               └───────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-> **Current stack (the ASCII boxes above reflect the original plan).** All LLM, embedding, and
-> safety calls go through **Cloudflare Workers AI** — there is no Anthropic/Claude usage. Trace
-> blobs & cassettes live in **MinIO** on the Azure VM, **not Cloudflare R2**. Similarity search
-> uses **xqdrant** (`localhost:6333`), **not Vectorize**. **Cloudflare Queues** were skipped —
-> evaluation runs synchronously. The **drift detector** is planned, not yet built. Root
-> `CLAUDE.md` §0 / §9 is authoritative.
+> **Current stack (the ASCII boxes above reflect the original plan — actual differs as noted).**
+> All LLM, embedding, and safety calls go through **Cloudflare Workers AI** — there is no
+> Anthropic/Claude usage. The main model is **`@cf/meta/llama-3.1-8b-instruct-fp8-fast`**
+> (RCA + judge), not Llama 3.3 70B. Trace blobs & cassettes live in **MinIO** on the Azure VM,
+> **not Cloudflare R2**. Similarity search uses **xqdrant** (`localhost:6333`), **not Vectorize**.
+> **Cloudflare Queues** were skipped — evaluation runs synchronously. The **drift detector is
+> built and live** (`POST /drift`, `detect_drift` in eval-engine). Root `CLAUDE.md` §0 / §9 is
+> authoritative.
 
 ## Data Flow: New Incident → End-to-End
 
@@ -115,7 +119,7 @@
    → returns top-k similar past incidents + relevant runbook pages
         │
         ▼
-5. atlassian-remote calls the LLM (CF Workers AI — Llama 3.3 70B)
+5. atlassian-remote calls the LLM (CF Workers AI — llama-3.1-8b-instruct-fp8-fast)
    → generates structured RcaDraft (Pydantic model, never free text)
    → flight-recorder intercepts this LLM call → records gen_ai.* span
         │
@@ -186,7 +190,7 @@
 | `eval-engine` | Python | Azure VM | systemd service, port 8000 |
 | `atlassian-agent` | TypeScript | Atlassian (Forge) | `forge deploy` |
 | `atlassian-remote` | Python | Azure VM | systemd service, port 8080 |
-| `dashboard` | TypeScript | Cloudflare Pages / Azure VM | `pnpm build` + static serve |
+| `dashboard` | TypeScript | Azure VM | `sentinel-dashboard` systemd unit (`next start -p 3001`) |
 
 All Azure VM services are exposed externally via **Cloudflare Tunnel** only. The VM has no open ports except SSH (22).
 
@@ -196,7 +200,7 @@ All Azure VM services are exposed externally via **Cloudflare Tunnel** only. The
 
 | Service | Provider | Used For |
 |---|---|---|
-| LLM inference (Llama 3.3 70B) | Cloudflare Workers AI | RCA generation, LLM judging |
+| LLM inference (llama-3.1-8b-instruct-fp8-fast) | Cloudflare Workers AI | RCA generation, LLM judging |
 | Safety filter + embeddings (Llama Guard 3, BGE-Base-EN) | Cloudflare Workers AI | Safety pre-filter, 768-dim embeddings |
 | Trace metadata + verdicts | Cloudflare D1 | Structured query access |
 | Trace blobs + cassettes | MinIO (S3-compatible, on Azure VM) | Large payload storage — **R2 skipped** (needs credit card) |

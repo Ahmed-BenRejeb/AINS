@@ -32,7 +32,7 @@ Standard src-layout: the importable package is `src/flight_recorder/`
 
 ```
 flight-recorder/
-├── api.py                       FastAPI server (port 8001): /runs /replay /bisect /health
+├── api.py                       FastAPI server (port 8001): /runs /replay /bisect /health — all except /health require X-Sentinel-Secret
 ├── src/flight_recorder/
 │   ├── config.py                FLIGHT_MODE resolution, CF-URL detection, genesis hash
 │   ├── exceptions.py            CassetteMissError (replay never falls back to a live call)
@@ -84,6 +84,27 @@ async with httpx.AsyncClient(transport=transport) as client:
     await agent(client)             # async CF Workers AI calls are taped
 ```
 
+## Mid-Replay Injection (Divergence Editing — UC2 §3.4)
+
+`POST /replay` accepts an optional `inject` map to override recorded responses mid-replay:
+
+```python
+# Override step 0's response and replay the run — the tape agent sees the injected value.
+curl -X POST .../replay -d '{
+  "run_id": "...",
+  "inject": {
+    "0": {"status_code": 200, "is_json": true, "headers": {"content-type": "application/json"},
+          "body": {"result": {"response": "INJECTED override"}}}
+  }
+}'
+# Response: {"injected_steps": [0], "diverged": false, "live_call_count": 0, ...}
+```
+
+The `injected_steps` field in the response confirms which overrides were applied.
+Divergence shows up when the agent branches on the injected value (the next request
+isn't in the cassette). On a fixed-order replay the injection is confirmed but no
+divergence occurs — both are valid and observable results.
+
 ## Key Environment Variables
 
 | Variable | Values | Effect |
@@ -91,3 +112,4 @@ async with httpx.AsyncClient(transport=transport) as client:
 | `FLIGHT_MODE` | `record` | intercept + store everything |
 | `FLIGHT_MODE` | `replay` | intercept + return cassette responses |
 | `FLIGHT_MODE` | `passthrough` | do nothing (production default) |
+| `FORGE_REMOTE_SECRET` | shared secret | `X-Sentinel-Secret` auth gate (required on all routes except `/health`) |

@@ -60,9 +60,9 @@ eval-engine/
 ## LLM Judge — CF Workers AI Pattern
 
 ```python
-# Uses CF Workers AI Llama 3.3 70B for judging
+# Uses CF Workers AI llama-3.1-8b-instruct-fp8-fast for judging (~6x cheaper than 70B, clean JSON)
 # See root CLAUDE.md Section 7 for the exact call pattern
-# Model: os.environ["CF_AI_MODEL_MAIN"] = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+# Model: os.environ["CF_AI_MODEL_MAIN"] = "@cf/meta/llama-3.1-8b-instruct-fp8-fast"
 
 async def llm_judge(transcript: str, rubric: str) -> JudgeVerdict:
     messages = [

@@ -12,11 +12,12 @@ Runs on **port 3001**.
 
 | Route | Purpose |
 |---|---|
-| `/` | Overview: stats (Total Runs, Pass Rate, pass^k, Flagged), recent verdicts, flag alert |
+| `/` | Overview: stats (Total Runs, Pass Rate, pass^k, Flagged), recent verdicts, one-loop pipeline |
 | `/runs` | All recorded runs (`GET /runs`) — click a row → trace |
 | `/runs/[run_id]` | Execution trace: manifest + staggered step timeline; Replay / View Verdict |
 | `/verdicts/[run_id]` | Full verdict: PASS/FAIL/UNCERTAIN hero, per-dimension scores, failure attribution, self-eval, replay link |
-| `/replay/[run_id]` | Launch deterministic replay (`POST /replay`) + bisect (`POST /bisect`) |
+| `/replay/[run_id]` | Deterministic replay (`POST /replay`), mid-replay inject, and bisect (`POST /bisect`) |
+| `/reliability` | Drift detection + evaluator quality side by side (UC1 §2.3/§2.4) |
 
 Plus `app/api/{replay,bisect}/route.ts` — server-side POST proxies (no browser CORS).
 
@@ -28,16 +29,19 @@ service is unreachable the page automatically falls back to mock data — so a s
 never breaks during judging. A `DataSourceBadge` shows whether you're seeing
 `LIVE`, `MOCK DATA`, or `MOCK (fallback)`. All fetches are server-side.
 
-> Note: the eval engine currently exposes only `/health` + `POST /evaluate`, so the
-> verdict screens run on mock-fallback in live mode until a `GET /verdicts` endpoint
-> exists. The UI already tries it and will light up automatically when it does.
+> The eval engine exposes `GET /verdicts` and `GET /verdicts/{run_id}` (reading the
+> persisted D1 `eval_verdicts` table), so the home recent-verdicts table and the verdict
+> detail screen serve **live** data once any run has been evaluated via `/analyze`.
 
 ## Stack
 
 Next.js 16 App Router · Tailwind CSS · hand-rolled shadcn-style primitives
-(`components/ui/*`) · Framer Motion · lucide-react. Fonts use system stacks (no
-remote font host), so the build is fully offline-safe. Types in `lib/types.ts`
-mirror `trace-core/schema.ts`.
+(`components/ui/*`) · Framer Motion · lucide-react. Fonts are self-hosted offline:
+**Bricolage Grotesque Variable** (display, `@fontsource-variable`) + **Geist Sans/Mono**
+(`geist` package) — no remote font host. Types in `lib/types.ts` mirror `trace-core/schema.ts`.
+
+**Deployed** as the `sentinel-dashboard` systemd unit (`next start -p 3001`) on the Azure VM,
+exposed at `https://dashboard.ahmedxsaad.me` via the Cloudflare `sentinel` tunnel.
 
 ## Setup
 
@@ -49,6 +53,11 @@ pnpm --filter dashboard typecheck  # tsc --noEmit
 pnpm --filter dashboard lint
 ```
 
-Override service URLs per-env with `NEXT_PUBLIC_FLIGHT_RECORDER_URL`,
-`NEXT_PUBLIC_EVAL_ENGINE_URL`, `NEXT_PUBLIC_FORGE_REMOTE_URL`,
-`NEXT_PUBLIC_LANGFUSE_URL` (defaults are the live production URLs).
+Override public link URLs with `NEXT_PUBLIC_FLIGHT_RECORDER_URL`, `NEXT_PUBLIC_EVAL_ENGINE_URL`,
+`NEXT_PUBLIC_FORGE_REMOTE_URL`, `NEXT_PUBLIC_LANGFUSE_URL` (defaults are the live production URLs).
+
+For server-side fetches (data, not links) use `FLIGHT_RECORDER_INTERNAL_URL` and
+`EVAL_ENGINE_INTERNAL_URL` — on the VM these point to `http://127.0.0.1:800{1,0}` so
+fetches bypass the Cloudflare tunnel. Use `127.0.0.1`, not `localhost` (IPv6 resolution
+breaks uvicorn). `FORGE_REMOTE_SECRET` is sent as `X-Sentinel-Secret` on every server-side
+fetch to the protected services.
