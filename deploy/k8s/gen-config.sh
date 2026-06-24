@@ -41,11 +41,17 @@ tmp_config="$(mktemp)"
 trap 'rm -f "$tmp_secret" "$tmp_config"' EXIT
 
 for k in $SECRET_KEYS; do
-  printf '%s=%s\n' "$k" "$(val "$k")" >> "$tmp_secret"
+  v="$(val "$k")"
+  # MinIO refuses to start with an empty/short root password (needs >= 8 chars).
+  # Default it for a blank .env so the demo cluster always comes up.
+  if [ "$k" = "BLOB_STORAGE_SECRET_KEY" ] && [ -z "$v" ]; then v="miniosecret"; fi
+  printf '%s=%s\n' "$k" "$v" >> "$tmp_secret"
 done
 
 for k in $CONFIG_KEYS; do
   v="$(val "$k")"
+  # MinIO root user (access key) must be present + >= 3 chars; default it too.
+  if [ "$k" = "BLOB_STORAGE_ACCESS_KEY" ] && [ -z "$v" ]; then v="minio"; fi
   [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> "$tmp_config"
 done
 
