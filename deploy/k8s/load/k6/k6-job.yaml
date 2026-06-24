@@ -1,0 +1,39 @@
+# k6 load-test Job — runs the ramping-VU test in deploy/k8s/load/k6/script.js against
+# the eval engine, in-cluster. The script is mounted from the `k6-script` ConfigMap
+# (create it first — see deploy/k8s/load/k6/README.md). The grafana/k6 image is on
+# docker.io (pulls fine here). One-shot: re-create the Job to run again.
+#
+#   kubectl -n sentinel create configmap k6-script --from-file=deploy/k8s/load/k6/script.js
+#   kubectl apply -f deploy/k8s/load/k6/k6-job.yaml
+#   kubectl -n sentinel logs job/k6-load -f      # streams the live k6 summary
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-load
+  namespace: sentinel
+  labels: { app: k6-load }
+spec:
+  backoffLimit: 0          # one attempt — a threshold breach should surface, not retry
+  completions: 1
+  template:
+    metadata:
+      labels: { app: k6-load }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:0.54.0
+          args: ["run", "/scripts/script.js"]
+          env:
+            - name: TARGET
+              value: "http://eval-engine:8000/health"
+            - name: PEAK_VUS
+              value: "200"
+          volumeMounts:
+            - { name: script, mountPath: /scripts }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: script
+          configMap: { name: k6-script }
