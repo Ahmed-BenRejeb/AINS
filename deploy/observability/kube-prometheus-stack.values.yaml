@@ -16,6 +16,19 @@ kubeScheduler: { enabled: false }
 kubeEtcd: { enabled: false }
 kubeProxy: { enabled: false }
 
+# The prometheus-operator admission webhook ships a cert-gen image from ghcr.io
+# (ghcr.io/jkroepke/kube-webhook-certgen). GitHub-hosted registries (ghcr.io /
+# github.com) are slow or blocked on some networks, which leaves the cert-gen Job
+# in ImagePullBackOff and stalls the whole install. The webhook only *validates*
+# Prometheus/Alertmanager CRs — unnecessary for a single-tenant demo — so disable
+# it to drop the only ghcr.io dependency. Every other image is on quay.io /
+# docker.io / registry.k8s.io (which pull fine here — qdrant + minio proved it).
+prometheusOperator:
+  admissionWebhooks:
+    enabled: false
+  tls:
+    enabled: false
+
 # Pick up our ServiceMonitors/PodMonitors regardless of release-label matching:
 # with the Nil-uses-Helm-values selectors set to false, Prometheus discovers every
 # ServiceMonitor in every namespace (so the `sentinel`-namespace monitors are found).
@@ -30,18 +43,19 @@ prometheus:
       requests: { cpu: 100m, memory: 400Mi }
       limits: { cpu: 500m, memory: 900Mi }
 
+# Alertmanager is not needed for the Sentinel dashboard (no alert routing in the
+# demo) — disable it to cut an image pull, a StatefulSet, and resource use.
 alertmanager:
-  alertmanagerSpec:
-    resources:
-      requests: { cpu: 10m, memory: 32Mi }
-      limits: { cpu: 100m, memory: 128Mi }
+  enabled: false
 
 grafana:
   # Known demo password (CHANGE for anything real). User: admin.
   adminPassword: sentinel
   resources:
-    requests: { cpu: 50m, memory: 128Mi }
-    limits: { cpu: 300m, memory: 256Mi }
+    # Grafana 11 + the dashboard/datasource sidecars overrun a 256Mi limit and get
+    # OOMKilled (drops the port-forward); 512Mi is comfortable for the demo.
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { cpu: 300m, memory: 512Mi }
   # The dashboard sidecar imports any ConfigMap labelled `grafana_dashboard: "1"`,
   # in ANY namespace — so deploy/observability/grafana-dashboard-sentinel.yaml is
   # auto-loaded into Grafana without manual import.
@@ -52,11 +66,13 @@ grafana:
       labelValue: "1"
       searchNamespace: ALL
 
-# Trim node-level exporters' footprint; keep them on (CPU/mem panels need them).
+# node-exporter is NOT required by the Sentinel dashboard: its per-pod CPU/mem
+# panels read cAdvisor metrics (container_cpu_usage_seconds_total /
+# container_memory_working_set_bytes, scraped from the kubelet), and the scaling
+# panels read kube-state-metrics — neither needs node_* metrics. Disable it to cut
+# another DaemonSet image pull on Minikube.
 prometheus-node-exporter:
-  resources:
-    requests: { cpu: 10m, memory: 24Mi }
-    limits: { cpu: 100m, memory: 64Mi }
+  enabled: false
 kube-state-metrics:
   resources:
     requests: { cpu: 10m, memory: 32Mi }
