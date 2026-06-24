@@ -14,6 +14,26 @@ from pydantic import BaseModel, Field
 from ..proxy import cassette
 
 
+def _extract_rca(loaded: dict[str, Any]) -> str | None:
+    """Return the RCA text from the last chat-type step in a cassette.
+
+    Identifies the chat step by the presence of ``result.response`` (a string) as
+    opposed to the embed step whose response has ``result.data`` (a float list).
+    """
+    for step_key in reversed(loaded.get("order", [])):
+        step = loaded["steps"].get(step_key, {})
+        body = step.get("body")
+        if not isinstance(body, dict):
+            continue
+        result = body.get("result")
+        if not isinstance(result, dict):
+            continue
+        response = result.get("response")
+        if isinstance(response, str):
+            return response[:1200]
+    return None
+
+
 class BisectResult(BaseModel):
     """Where two runs first diverge (if at all)."""
 
@@ -38,6 +58,14 @@ class BisectResult(BaseModel):
     bad_output: dict[str, Any] | None = Field(
         default=None, description="Bad run's recorded response at the diverging step."
     )
+    good_rca: str | None = Field(
+        default=None,
+        description="Full RCA text produced by the good run (from its chat-step cassette response).",
+    )
+    bad_rca: str | None = Field(
+        default=None,
+        description="Full RCA text produced by the bad run (from its chat-step cassette response).",
+    )
 
 
 def bisect_runs(good_run_id: str, bad_run_id: str) -> BisectResult:
@@ -60,6 +88,8 @@ def bisect_runs(good_run_id: str, bad_run_id: str) -> BisectResult:
     bad = cassette.load_cassette(bad_run_id)
     good_order: list[str] = good["order"]
     bad_order: list[str] = bad["order"]
+    good_rca = _extract_rca(good)
+    bad_rca = _extract_rca(bad)
 
     for index in range(min(len(good_order), len(bad_order))):
         good_key = good_order[index]
@@ -82,6 +112,8 @@ def bisect_runs(good_run_id: str, bad_run_id: str) -> BisectResult:
             bad_step_key=bad_key,
             good_output=good_output,
             bad_output=bad_output,
+            good_rca=good_rca,
+            bad_rca=bad_rca,
         )
 
     if len(good_order) != len(bad_order):
@@ -92,6 +124,14 @@ def bisect_runs(good_run_id: str, bad_run_id: str) -> BisectResult:
             identical=False,
             first_diverging_step=index,
             reason="run length diverged (one run has more steps)",
+            good_rca=good_rca,
+            bad_rca=bad_rca,
         )
 
-    return BisectResult(good_run_id=good_run_id, bad_run_id=bad_run_id, identical=True)
+    return BisectResult(
+        good_run_id=good_run_id,
+        bad_run_id=bad_run_id,
+        identical=True,
+        good_rca=good_rca,
+        bad_rca=bad_rca,
+    )

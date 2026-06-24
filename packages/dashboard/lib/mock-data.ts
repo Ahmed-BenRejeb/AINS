@@ -452,30 +452,37 @@ const mockVerdicts: Record<string, EvalVerdict> = {
 
 // ─── Replay / bisect ───────────────────────────────────────────────────────────
 
+const MOCK_RCA_PASS =
+  '{"root_cause_hypothesis":"Connection pool exhaustion on the primary DB replica caused the queue workers to time out. Triggered by the overnight batch job overlapping with peak morning traffic.","evidence":["AO-51: identical pool exhaustion pattern at 03:14 UTC","AO-71: DB thread-pool saturation 8 days prior","Runbook RB-DB-POOL-01: pool size tuning guide"],"proposed_severity":"high","confidence_score":0.88,"proposed_assignee_team":"platform-reliability","duplicate_check":{"is_duplicate":false},"knowledge_gaps":[]}';
+
+const MOCK_RCA_FAIL =
+  '{"root_cause_hypothesis":"Unable to determine root cause — insufficient telemetry. The incident was triggered by an upstream API timeout but the specific service dependency is unknown.","evidence":[],"proposed_severity":"medium","confidence_score":0.41,"proposed_assignee_team":"oncall","duplicate_check":{"is_duplicate":false},"knowledge_gaps":["missing upstream service dependency map","no distributed trace id in the incident report"]}';
+
 /** Mock replay result: the failing webhook run diverges, every other run is clean. */
 export function mockReplay(runId: string): ReplayResult {
-  // The failing webhook run replays with a divergence; everything else is clean.
   if (runId === RUN_IDS.fail1) {
     return {
       run_id: runId,
-      recorded_steps: 5,
+      recorded_steps: 2,
       live_call_count: 0,
       diverged: true,
       divergences: [
         {
-          step_key: "llm:@cf/meta/llama-3.3-70b-instruct-fp8-fast:a17f…",
+          step_key: "llm:@cf/meta/llama-3.1-8b-instruct-fp8-fast:a17f…",
           reason: "request not present in cassette (prompt drift since recording)",
         },
       ],
+      output_preview: MOCK_RCA_FAIL,
     };
   }
   const known = mockRuns.find((r) => r.run_id === runId);
   return {
     run_id: runId,
-    recorded_steps: known?.step_count ?? 5,
+    recorded_steps: known?.step_count ?? 2,
     live_call_count: 0,
     diverged: false,
     divergences: [],
+    output_preview: MOCK_RCA_PASS,
   };
 }
 
@@ -483,12 +490,14 @@ export const mockBisect: BisectResult = {
   good_run_id: RUN_IDS.pass1,
   bad_run_id: RUN_IDS.fail1,
   identical: false,
-  first_diverging_step: 2,
-  reason: "retrieval output differs: good run matched RB-DB-POOL (0.89); bad run found no runbook (<0.75)",
-  good_step_key: "tool:xqdrant.query_points:incidents:8f3a…",
-  bad_step_key: "tool:xqdrant.query_points:incidents:2c9e…",
-  good_output: { top_score: 0.89, runbook_hits: 2 },
-  bad_output: { top_score: 0.71, runbook_hits: 0 },
+  first_diverging_step: 0,
+  reason: "request diverged (different step_key)",
+  good_step_key: "llm:@cf/baai/bge-base-en-v1.5:8f3a…",
+  bad_step_key: "llm:@cf/baai/bge-base-en-v1.5:2c9e…",
+  good_output: null,
+  bad_output: null,
+  good_rca: MOCK_RCA_PASS,
+  bad_rca: MOCK_RCA_FAIL,
 };
 
 // ─── Aggregates / accessors ────────────────────────────────────────────────────

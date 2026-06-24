@@ -60,6 +60,26 @@ class Divergence(BaseModel):
     reason: str = Field(description="Human-readable description of the divergence.")
 
 
+def _extract_chat_output(loaded: dict[str, Any]) -> str | None:
+    """Return the RCA text from the last chat-type step in a cassette.
+
+    Identifies the chat step by the presence of ``result.response`` (a string) as
+    opposed to the embed step whose response has ``result.data`` (a float list).
+    """
+    for step_key in reversed(loaded.get("order", [])):
+        step = loaded["steps"].get(step_key, {})
+        body = step.get("body")
+        if not isinstance(body, dict):
+            continue
+        result = body.get("result")
+        if not isinstance(result, dict):
+            continue
+        response = result.get("response")
+        if isinstance(response, str):
+            return response[:1200]
+    return None
+
+
 class ReplayResult(BaseModel):
     """Outcome of replaying one recorded run."""
 
@@ -75,6 +95,14 @@ class ReplayResult(BaseModel):
     injected_steps: list[int] = Field(
         default_factory=list,
         description="Indices of steps whose recorded response was overridden (divergence editing).",
+    )
+    output_preview: str | None = Field(
+        default=None,
+        description="The RCA/chat-step model output from the cassette (the actual agent output).",
+    )
+    original_outputs: dict[int, str] | None = Field(
+        default=None,
+        description="Original cassette response text for each injected step, keyed by step index.",
     )
 
     @property
@@ -110,10 +138,23 @@ def replay_run(
     order: list[str] = loaded["order"]
     injections: dict[str, dict[str, object]] = {}
     applied: list[int] = []
+    original_outputs: dict[int, str] = {}
     for index, override in (inject or {}).items():
         if 0 <= index < len(order):
-            injections[order[index]] = override
+            step_key = order[index]
+            injections[step_key] = override
             applied.append(index)
+            # Capture the original cassette response for the before/after UI diff.
+            orig_step = loaded["steps"].get(step_key, {})
+            orig_result = orig_step.get("body", {}).get("result", {})
+            orig_text = orig_result.get("response")
+            if isinstance(orig_text, str):
+                original_outputs[index] = orig_text[:800]
+            elif "data" in orig_result:
+                data = orig_result["data"]
+                if isinstance(data, list) and data:
+                    dims = len(data[0]) if isinstance(data[0], list) else "?"
+                    original_outputs[index] = f"(embedding vector: {len(data)} × {dims}-dim)"
     transport = RecordingTransport(run_id, mode="replay", injections=injections)
     divergences: list[Divergence] = []
 
@@ -143,4 +184,6 @@ def replay_run(
         diverged=bool(divergences),
         divergences=divergences,
         injected_steps=sorted(applied),
+        output_preview=_extract_chat_output(loaded),
+        original_outputs=original_outputs if original_outputs else None,
     )

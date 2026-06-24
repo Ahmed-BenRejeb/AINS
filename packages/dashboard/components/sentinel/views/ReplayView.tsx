@@ -48,8 +48,11 @@ export function ReplayView({
 
   // Divergence editing (UC2 §3.4): override a recorded step's response mid-replay.
   const httpSteps = (detail?.trace ?? []).filter((s) => String(s.kind) === "llm_call");
-  const [injectStep, setInjectStep] = useState(0);
-  const [injectText, setInjectText] = useState('{"result": {"response": "INJECTED override"}}');
+  // Default to the last http step (the chat/RCA step) — that's the meaningful one to override.
+  const [injectStep, setInjectStep] = useState(() => Math.max(0, httpSteps.length - 1));
+  const [injectText, setInjectText] = useState(
+    '{"result": {"response": "{\\"root_cause_hypothesis\\": \\"INJECTED: disk I/O saturation on replica node caused replication lag\\", \\"confidence_score\\": 0.9, \\"proposed_severity\\": \\"critical\\"}"}}',
+  );
   const [inject, setInject] = useState<Loaded<ReplayResult> | null>(null);
   const [injectLoading, setInjectLoading] = useState(false);
   const [injectError, setInjectError] = useState<string | null>(null);
@@ -97,6 +100,12 @@ export function ReplayView({
       setInjectLoading(false);
     }
   }
+
+  // The original RCA from the trace output_preview (for the inject before/after comparison)
+  const originalRca =
+    detail?.trace
+      .filter((s) => String(s.kind) === "llm_call")
+      .slice(-1)[0]?.output_preview ?? null;
 
   async function launchBisect() {
     setBisectLoading(true);
@@ -201,16 +210,23 @@ export function ReplayView({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Override a recorded response and replay. The harness serves the injected value instead
-              of the tape at the chosen step.{" "}
-              <span className="font-medium text-foreground">
-                Confirmed by <code className="font-mono text-xs">injected_steps</code> in the result.
-              </span>{" "}
-              Divergence shows up when the agent branches based on the injected value (an unrecorded
-              next request). For a fixed-order replay — where subsequent requests are predetermined —
-              the injection is applied and confirmed, but no divergence occurs (the run still
-              completes cleanly from tape).
+              Swap a recorded model response and replay. Inject at the{" "}
+              <span className="font-medium text-foreground">RCA / chat step</span> to see what the
+              agent would have produced if the model had said something different. The result shows
+              the original cassette output alongside your injected value so you can compare them
+              directly.
             </p>
+            {originalRca && (
+              <div className="space-y-1.5">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Original recorded output (step {httpSteps.length - 1} — RCA)
+                </div>
+                <pre className="max-h-32 overflow-auto rounded bg-white/[0.03] p-2.5 font-mono text-[11px] text-foreground/70">
+                  {originalRca.slice(0, 600)}
+                  {originalRca.length > 600 ? "\n… (truncated)" : ""}
+                </pre>
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
               <label className="space-y-1.5">
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -223,20 +239,20 @@ export function ReplayView({
                 >
                   {httpSteps.map((_, i) => (
                     <option key={i} value={i}>
-                      step {i} ({i === httpSteps.length - 1 ? "RCA / chat" : "embedding"})
+                      step {i} — {i === httpSteps.length - 1 ? "RCA / chat ← best to inject here" : "embedding"}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="space-y-1.5">
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Override response (JSON)
+                  Injected model response (JSON body the model returns)
                 </span>
                 <textarea
                   value={injectText}
                   onChange={(e) => setInjectText(e.target.value)}
                   spellCheck={false}
-                  rows={2}
+                  rows={3}
                   className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-white/25"
                 />
               </label>
@@ -250,7 +266,7 @@ export function ReplayView({
               {injectLoading ? "Injecting…" : "Inject & replay"}
             </Button>
             {injectError && <p className="text-xs text-verdict-fail">{injectError}</p>}
-            {inject && <ReplayResultPanel result={inject} />}
+            {inject && <ReplayResultPanel result={inject} injectedText={injectText} />}
           </CardContent>
         </Card>
       )}
@@ -348,9 +364,16 @@ function ResultBanner({
   );
 }
 
-function ReplayResultPanel({ result }: { result: Loaded<ReplayResult> }) {
+function ReplayResultPanel({
+  result,
+  injectedText,
+}: {
+  result: Loaded<ReplayResult>;
+  injectedText?: string;
+}) {
   const r = result.data;
   const clean = r.live_call_count === 0 && !r.diverged;
+  const hasInject = r.injected_steps && r.injected_steps.length > 0;
   return (
     <div className="space-y-3">
       <ResultBanner
@@ -371,13 +394,55 @@ function ReplayResultPanel({ result }: { result: Loaded<ReplayResult> }) {
           accent={r.diverged ? "text-verdict-fail" : "text-verdict-pass"}
         />
       </div>
-      {r.injected_steps && r.injected_steps.length > 0 && (
-        <p className="flex items-center gap-1.5 text-xs text-amber-300/90">
-          <FlaskConical className="h-3.5 w-3.5" aria-hidden />
-          Overrode step{r.injected_steps.length === 1 ? "" : "s"} {r.injected_steps.join(", ")} during
-          replay (served from the harness, not the tape).
-        </p>
+
+      {/* Show the actual RCA output from the cassette */}
+      {r.output_preview && !hasInject && (
+        <div className="space-y-1.5">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+            Replayed agent output (RCA draft)
+          </div>
+          <pre className="max-h-48 overflow-auto rounded bg-white/[0.03] p-3 font-mono text-[11px] text-foreground/80">
+            {r.output_preview}
+          </pre>
+        </div>
       )}
+
+      {/* Inject: show before/after comparison */}
+      {hasInject && (
+        <div className="space-y-2">
+          <p className="flex items-center gap-1.5 text-xs text-amber-300/90">
+            <FlaskConical className="h-3.5 w-3.5" aria-hidden />
+            Overrode step{r.injected_steps!.length === 1 ? "" : "s"} {r.injected_steps!.join(", ")} —
+            served from the harness instead of the tape.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {r.original_outputs &&
+              r.injected_steps!.map((stepIdx) => {
+                const orig = (r.original_outputs as Record<string, string>)[String(stepIdx)];
+                if (!orig) return null;
+                return (
+                  <div key={stepIdx}>
+                    <div className="mb-1 text-xs text-muted-foreground">
+                      Original cassette (step {stepIdx})
+                    </div>
+                    <pre className="max-h-40 overflow-auto rounded bg-white/[0.03] p-2.5 font-mono text-[11px] text-foreground/70">
+                      {orig}
+                    </pre>
+                  </div>
+                );
+              })}
+            {injectedText && (
+              <div>
+                <div className="mb-1 text-xs text-amber-300/80">Your injected value</div>
+                <pre className="max-h-40 overflow-auto rounded bg-amber-400/[0.04] border border-amber-400/20 p-2.5 font-mono text-[11px] text-foreground/80">
+                  {injectedText.slice(0, 600)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {r.divergences.length > 0 && (
         <div className="space-y-2">
           {r.divergences.map((d, i) => (
@@ -388,7 +453,7 @@ function ReplayResultPanel({ result }: { result: Loaded<ReplayResult> }) {
           ))}
         </div>
       )}
-      {clean && (
+      {clean && !hasInject && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5 text-verdict-pass" aria-hidden />
           Hash-chained audit trail verified. The run is byte for byte reproducible.
@@ -439,28 +504,35 @@ function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
           <div className="text-sm text-foreground/90">{b.reason}</div>
           {requestDiverge && (
             <p className="text-xs text-muted-foreground border-l-2 border-accent/40 pl-3">
-              The request hash at this step differs — the two runs sent different inputs (e.g.
-              different incident text at step 0). For a response-level divergence (same input,
-              different model output), compare two runs that analyzed the same incident.
+              Step {b.first_diverging_step} had different inputs (different incident text → different
+              embedding hash). To see a response-level divergence, compare two runs that analyzed the
+              same incident. The RCA outputs below are always compared regardless.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Always show the RCA comparison — this is the meaningful diff */}
+      {(b.good_rca || b.bad_rca) && (
+        <div className="space-y-2">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+            RCA output comparison (chat step)
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <div className="text-xs uppercase tracking-wide text-verdict-pass">Good</div>
-              <div className="mt-1 font-mono text-xs text-muted-foreground">
-                {truncateId(b.good_run_id, 12)} · {b.good_step_key ?? "-"}
+              <div className="mb-1 text-xs text-verdict-pass">
+                Good run · {truncateId(b.good_run_id, 12)}
               </div>
-              <pre className="mt-1 max-h-48 overflow-auto rounded bg-white/[0.03] p-2 font-mono text-[11px] text-foreground/80">
-                {previewOutput(b.good_output)}
+              <pre className="max-h-64 overflow-auto rounded bg-verdict-pass/[0.04] border border-verdict-pass/20 p-3 font-mono text-[11px] text-foreground/80">
+                {b.good_rca ?? "(no chat step found)"}
               </pre>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wide text-verdict-fail">Bad</div>
-              <div className="mt-1 font-mono text-xs text-muted-foreground">
-                {truncateId(b.bad_run_id, 12)} · {b.bad_step_key ?? "-"}
+              <div className="mb-1 text-xs text-verdict-fail">
+                Bad run · {truncateId(b.bad_run_id, 12)}
               </div>
-              <pre className="mt-1 max-h-48 overflow-auto rounded bg-white/[0.03] p-2 font-mono text-[11px] text-foreground/80">
-                {previewOutput(b.bad_output)}
+              <pre className="max-h-64 overflow-auto rounded bg-verdict-fail/[0.04] border border-verdict-fail/20 p-3 font-mono text-[11px] text-foreground/80">
+                {b.bad_rca ?? "(no chat step found)"}
               </pre>
             </div>
           </div>

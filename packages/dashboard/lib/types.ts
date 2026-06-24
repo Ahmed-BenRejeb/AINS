@@ -148,6 +148,10 @@ export interface ReplayResult {
   diverged: boolean;
   divergences: Divergence[];
   injected_steps?: number[];
+  /** The actual RCA/chat-step model output from the cassette (the agent's produced text). */
+  output_preview?: string | null;
+  /** Original cassette response text at each injected step index, for before/after diff. */
+  original_outputs?: Record<number, string> | null;
 }
 
 /** Response of `POST /bisect`. */
@@ -161,6 +165,10 @@ export interface BisectResult {
   bad_step_key: string | null;
   good_output: Record<string, unknown> | null;
   bad_output: Record<string, unknown> | null;
+  /** Full RCA text from the good run's chat step (always included regardless of diverge step). */
+  good_rca?: string | null;
+  /** Full RCA text from the bad run's chat step (always included regardless of diverge step). */
+  bad_rca?: string | null;
 }
 
 // ─── Dashboard view models ─────────────────────────────────────────────────────
