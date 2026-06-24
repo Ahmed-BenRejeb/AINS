@@ -7,11 +7,13 @@ under `deploy/` — it does not change how the app runs on the VM.
 
 ```
 deploy/
-├── docker/    python.Dockerfile (one image, all 3 FastAPI services) + dashboard.Dockerfile
-├── k8s/       namespace, config/secret (+ generator), backends, service Deployments, kustomization
-│   ├── keda/  ScaledObject (Phase 2)
-│   └── load/  load generator (Phase 2)
-└── helm/      Helm chart (Phase 3)
+├── docker/        python.Dockerfile (one image, all 3 FastAPI services) + dashboard.Dockerfile
+├── k8s/           namespace, config/secret (+ generator), backends, service Deployments, kustomization
+│   ├── keda/      ScaledObject (Phase 2)
+│   └── load/      load generator (Phase 2)
+├── helm/          Helm chart (Phase 3)
+├── observability/ kube-prometheus-stack values + ServiceMonitors + Grafana dashboard (Phase 4)
+└── chaos/         pod-kill / steady-state scripts + Chaos Mesh experiments (Phase 5)
 ```
 
 ## What runs where
@@ -71,6 +73,29 @@ kubectl -n sentinel get scaledobject,hpa,pods -w
 
 ## Phase 3 — Helm
 See `deploy/helm/sentinel/` — `helm install sentinel deploy/helm/sentinel -n sentinel --create-namespace`.
+Enable the metrics scrape config (Phase 4) with `--set monitoring.enabled=true` once
+kube-prometheus-stack is installed.
+
+## Phase 4 — Observability (Prometheus + Grafana)
+The three FastAPI services expose `GET /metrics`; `kube-prometheus-stack` scrapes them and a
+pre-built Grafana dashboard shows KEDA scaling, per-pod CPU/mem, request rate, p95 latency,
+and restart recovery. See **`deploy/observability/README.md`**.
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts && helm repo update
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  -n monitoring --create-namespace -f deploy/observability/kube-prometheus-stack.values.yaml
+kubectl apply -f deploy/observability/servicemonitor.yaml -f deploy/observability/grafana-dashboard-sentinel.yaml
+```
+
+## Phase 5 — Chaos engineering
+Prove reliability: kill pods / stress CPU / add latency and watch the system self-heal and
+KEDA scale. Scripted (`kubectl`-only) or via Chaos Mesh. See **`deploy/chaos/README.md`**.
+
+```bash
+bash deploy/chaos/steady-state.sh        # terminal A: availability probe
+bash deploy/chaos/pod-kill.sh            # terminal B: kill eval-engine pods, watch recovery
+```
 
 ## Notes
 - Storage is `emptyDir` (ephemeral) — fine for a demo; swap for PVCs to persist.

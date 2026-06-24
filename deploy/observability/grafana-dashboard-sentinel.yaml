@@ -1,0 +1,102 @@
+# Grafana dashboard for the Sentinel stack — auto-imported by the kube-prometheus-stack
+# Grafana sidecar (it watches for ConfigMaps labelled `grafana_dashboard: "1"`).
+#
+#   kubectl apply -f deploy/observability/grafana-dashboard-sentinel.yaml
+#
+# Then open Grafana → Dashboards → "Sentinel — Reliability & Scalability".
+# It tells the scalability + reliability story: KEDA replica scaling, per-pod CPU/mem,
+# app request-rate + p95 latency (from /metrics), running-pod count, and restart counts
+# (chaos recovery). Lives in the `monitoring` namespace next to Grafana.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sentinel-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  sentinel.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["sentinel"],
+      "time": { "from": "now-30m", "to": "now" },
+      "refresh": "10s",
+      "title": "Sentinel — Reliability & Scalability",
+      "templating": { "list": [] },
+      "panels": [
+        {
+          "id": 1,
+          "title": "eval-engine replicas (KEDA scaling)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "fillOpacity": 20 } } },
+          "targets": [
+            { "expr": "kube_deployment_status_replicas{namespace=\"sentinel\", deployment=\"eval-engine\"}", "legendFormat": "current replicas" },
+            { "expr": "kube_horizontalpodautoscaler_status_desired_replicas{namespace=\"sentinel\"}", "legendFormat": "HPA desired" }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Running pods in namespace `sentinel`",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 20 } } },
+          "targets": [
+            { "expr": "count(kube_pod_status_phase{namespace=\"sentinel\", phase=\"Running\"})", "legendFormat": "running pods" }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "CPU usage per pod (cores)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+          "targets": [
+            { "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"sentinel\", container!=\"\", pod!=\"\"}[2m])) by (pod)", "legendFormat": "{{pod}}" }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Memory working set per pod",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+          "targets": [
+            { "expr": "sum(container_memory_working_set_bytes{namespace=\"sentinel\", container!=\"\"}) by (pod)", "legendFormat": "{{pod}}" }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "HTTP request rate per service (req/s)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+          "targets": [
+            { "expr": "sum(rate(http_requests_total{namespace=\"sentinel\"}[1m])) by (job)", "legendFormat": "{{job}}" }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "p95 request latency per handler (s)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"sentinel\"}[5m])) by (le, handler))", "legendFormat": "{{handler}}" }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Container restarts (chaos recovery)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 60 } } },
+          "targets": [
+            { "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"sentinel\"}[10m])) by (pod)", "legendFormat": "{{pod}}" }
+          ]
+        }
+      ]
+    }

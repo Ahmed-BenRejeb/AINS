@@ -79,7 +79,14 @@ disallow_untyped_defs = true
 # qdrant_client (atlassian-remote) is added here too as a safety net in case a
 # pinned build ships incomplete type info.
 [[tool.mypy.overrides]]
-module = ["boto3.*", "botocore.*", "uvicorn.*", "mypy_boto3_s3.*", "qdrant_client.*"]
+module = [
+    "boto3.*",
+    "botocore.*",
+    "uvicorn.*",
+    "mypy_boto3_s3.*",
+    "qdrant_client.*",
+    "prometheus_fastapi_instrumentator.*",
+]
 ignore_missing_imports = true
 
 [tool.ruff]

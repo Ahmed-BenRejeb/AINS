@@ -57,6 +57,14 @@ keda:
   maxReplicas: 5
   cpuUtilization: 50
 
+# Prometheus ServiceMonitors for the FastAPI services' /metrics endpoints. OFF by
+# default — needs the Prometheus Operator CRDs from kube-prometheus-stack (see
+# deploy/observability/). Enable with --set monitoring.enabled=true once it's installed.
+monitoring:
+  enabled: false
+  releaseLabel: kube-prometheus-stack   # must match the kube-prometheus-stack release name
+  interval: 15s
+
 # Non-secret config rendered into the ConfigMap. In-cluster URLs are Service DNS.
 config:
   XQDRANT_URL: "http://xqdrant:6333"
