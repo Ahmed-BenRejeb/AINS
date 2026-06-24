@@ -34,9 +34,16 @@ make test-e2e
 
 ## E2E Test Scenarios
 
-| Test | What It Covers |
+The `tests/e2e/` directory is a placeholder for future multi-service E2E tests. The full loop is currently covered by:
+
+- `packages/atlassian-remote/tests/integration/test_full_loop.py` — end-to-end loop with all boundaries mocked (analyze → record → eval → verdict)
+- Live validation on the Azure VM (documented in `docs/validation_guide.md`)
+
+Planned E2E scenarios (require all services running via `make dev`):
+
+| Scenario | What It Would Cover |
 |---|---|
-| `test_full_happy_path.py` | Synthetic incident → agent run → flight recorder captures → eval verdict → Jira issue filed |
-| `test_failure_attribution.py` | Deliberate retrieval failure → verdict attributes to correct step → replay bisects to that step |
-| `test_deterministic_replay.py` | Record a run → replay it → assert zero live API calls were made |
-| `test_drift_detection.py` | Two runs with different output distributions → drift alert fires |
+| Happy path | Synthetic incident → agent run → flight recorder captures → eval verdict → Jira issue filed |
+| Failure attribution | Deliberate retrieval failure → verdict attributes to correct step → replay bisects to that step |
+| Deterministic replay | Record a run → replay it → assert zero live API calls were made |
+| Drift detection | Two run windows with different output distributions → drift alert fires |

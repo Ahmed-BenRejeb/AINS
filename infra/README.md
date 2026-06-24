@@ -11,8 +11,7 @@ This folder contains **no application code** — only config files and setup scr
 - Azure VM provisioning scripts and systemd service definitions
 - Any other infrastructure-as-code
 
-> Blob storage uses **MinIO** (on the Azure VM), not Cloudflare R2; **Queues** were skipped
-> (sync eval calls). See root `CLAUDE.md` §9.
+> Blob storage uses **MinIO** (on the Azure VM at port 9090, inside the Langfuse Docker stack), not Cloudflare R2; **Queues** were skipped (sync eval calls). See root `CLAUDE.md` §9.
 
 ## What Does NOT Go Here
 
@@ -32,4 +31,6 @@ Cloudflare handles everything stateless and globally distributed. Azure handles 
 ## Sub-folders
 
 - `cloudflare/` — `wrangler.toml` and migration files for all Cloudflare resources
-- `azure/` — VM setup script, systemd service files, Nginx config
+- `azure/` — VM provisioning script and systemd service unit files (no Nginx — public HTTPS is via the Cloudflare Tunnel daemon `cloudflared`)
+
+> For Kubernetes/Helm/KEDA production deployment see `deploy/` at the repo root.

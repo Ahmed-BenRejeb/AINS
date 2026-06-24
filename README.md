@@ -16,7 +16,7 @@ Sentinel is a unified reliability platform that continuously evaluates, records,
 
 The three layers share a single [OpenTelemetry GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) trace spine. UC2 captures, UC1 judges, UC3 produces the agent runs being captured and judged — and verdicts are filed back as Jira issues.
 
-**Status:** the end-to-end loop is wired and **live-validated** on the Azure VM — `POST /analyze` records every LLM call into a MinIO cassette, the eval engine judges that cassette and files a Jira Incident on a flagged verdict, and the response carries the verdict + a replay link. Remaining: deploy the Forge app (UC3) to Atlassian. Phase 5 differentiators are built — the dashboard is deployed and the UC1 drift detector (`POST /drift`) is in.
+**Status:** fully built and live-validated. The end-to-end loop runs on the Azure VM — `POST /analyze` records every LLM call into a MinIO cassette, the eval engine judges it and files a Jira Incident on failure, and the response carries the verdict + a replay link. The Forge Rovo Agent (v2.2.0) is deployed and installed on Jira + Confluence at ahmedains.atlassian.net. The dashboard is live at `https://dashboard.ahmedxsaad.me` with all screens including `/reliability` (drift + evaluator quality), mid-replay injection, and bisect. A full K8s/KEDA/Helm deployment stack (`deploy/`) and an embedding interpretability pipeline (`interpretability/`) round out the submission.
 
 ---
 
@@ -60,11 +60,20 @@ sentinel/
 │   ├── eval-engine/        UC1: evaluate traces, produce verdicts
 │   ├── atlassian-agent/    UC3: Forge Rovo Agent + Actions (TypeScript)
 │   ├── atlassian-remote/   UC3: heavy compute backend via Forge Remote (Python)
-│   └── dashboard/          Shared UI: traces, verdicts, replay, incidents
+│   └── dashboard/          Shared UI: traces, verdicts, replay, drift, reliability
 │
-├── 🏗️  infra/              Infrastructure configuration (not application code)
-│   ├── cloudflare/         Wrangler config for D1, Vectorize, Workers AI, Tunnel
-│   └── azure/              Azure VM provisioning scripts and systemd services
+├── 🚀 deploy/              Production deployment manifests
+│   ├── k8s/                Kubernetes manifests + KEDA autoscaler + Kustomize
+│   ├── helm/sentinel/      Helm chart for the full Sentinel stack
+│   ├── docker/             Dockerfiles for each Python service and the dashboard
+│   ├── observability/      Prometheus/Grafana stack + ServiceMonitor + Grafana dashboard
+│   └── chaos/              ChaosMesh chaos experiments (pod-kill, network-delay, CPU stress)
+│
+├── 🔬 interpretability/    Embedding interpretability pipeline (5-step: vocab → geometry → attribution)
+│
+├── 🏗️  infra/              Azure VM + Cloudflare tunnel configuration
+│   ├── cloudflare/         Wrangler config for D1, Workers AI, Tunnel
+│   └── azure/              VM provisioning scripts and systemd service units
 │
 ├── 📜 scripts/             One-off scripts: data seeding, eval runs, migrations
 │
@@ -96,9 +105,13 @@ Each folder contains a `README.md` explaining what belongs there and why.
 ---
 
 ## Key References
-- [Techincal specs Doc](docs/TECHNICAL_SPECS.md)
+- [Technical Specs Doc](docs/TECHNICAL_SPECS.md)
 - [Technical Battle Plan](docs/BATTLE_PLAN.md)
 - [Architecture Diagram](docs/ARCHITECTURE.md)
 - [Evaluation Report](docs/eval_report.md)
+- [Spec Response (Must/Should checklist)](docs/spec_response.md)
+- [Validation Guide (demo-day walkthrough)](docs/validation_guide.md)
+- [Deployment Guide (K8s/Helm/KEDA)](deploy/README.md)
+- [Embedding Interpretability Pipeline](interpretability/README.md)
 - [OTel GenAI Replay Extension Spec](spec/otel-genai-replay-extension.md)
 - [MCP Audit Trail Proposal](spec/mcp-audit-trail-proposal.md)

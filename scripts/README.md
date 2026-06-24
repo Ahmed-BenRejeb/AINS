@@ -22,8 +22,12 @@ These are not importable modules — they are run directly from the command line
 
 | Script | Command | What It Does |
 |---|---|---|
-| `seed_atlassian.py` | `make seed` | Creates 100 synthetic JSM incidents + 20 Confluence runbooks on the dev site |
+| `seed_atlassian.py` | `make seed` | Creates 100 synthetic JSM incidents + 10 Confluence runbooks (one per root-cause category) on the dev site |
+| `seed_xqdrant.py` | `make seed-xqdrant` | Embeds the seeded incidents + runbooks with BGE-768 and loads them into xqdrant for retrieval |
+| `seed_custom_incidents.py` | `make seed-custom CSV=<path>` | Seeds a company's own incidents from a CSV into Jira AO + xqdrant for a tailored demo |
 | `run_synthetic_eval.py` | `make eval` | Runs the eval suite on synthetic traces, outputs `pass^k` report to `docs/eval_report.md` |
+| `make_bisect_pair.py` | `make bisect-demo` | Builds a good/bad run pair that diverges at the RCA step (for the bisect demo) |
+| `check_docs.py` | `make check-docs` | Verifies `.env.example` + docs haven't drifted from the code (run before every commit) |
 
 ## Run Order (First-Time Setup)
 
@@ -31,7 +35,8 @@ These are not importable modules — they are run directly from the command line
 # 1. Seed Atlassian with synthetic data
 make seed
 
-# 2. (The atlassian-agent will process these incidents automatically via webhook)
+# 2. Embed those incidents + runbooks into xqdrant (required for retrieval to return results)
+make seed-xqdrant
 
 # 3. Run the eval suite on the resulting traces
 make eval

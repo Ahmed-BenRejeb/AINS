@@ -128,3 +128,5 @@ jupyter notebook explore.ipynb
 - Attribution targets **embedding dimensions** (aligned with XQdrant), not downstream LLM logits.
 - Labels are **probe-derived**, not ground truth — treat as hypotheses; refine `concepts.json` and re-run.
 - Raw BGE dims can include **global bias** components (large on every normalized embedding). Step 5 uses leave-one-out centroid residuals so each concept list highlights dims that differ from the other SRE probes, not universal ones like dim 308.
+- **`with_explanation` is conditional:** the production stack currently runs the standard Qdrant image. The `with_explanation: true` flag (an XQdrant fork feature) activates when `fantazytv/xqdrant` is swapped in. Until then, `atlassian-remote`'s `search_similar()` synthesises an `Attribution` from the score gap to the next hit (`confidence_margin`), not from per-dimension explanations. Swap the image and re-seed to get full dim-level attribution in traces.
+- **No `make` target** — run directly via `python build_map.py` inside this directory's venv. It is intentionally isolated from the uv workspace (separate `pyproject.toml`, `.python-version`, and lock file).

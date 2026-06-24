@@ -1,6 +1,6 @@
 # packages/
 
-This directory contains all application code, split into six packages.
+This directory contains all application code, split into six packages. A seventh standalone pipeline — `interpretability/` — lives at the repo root (isolated venv, separate `pyproject.toml`, not a uv workspace member).
 
 ---
 
@@ -24,6 +24,8 @@ packages/
 ├── atlassian-agent/      UC3 — Atlassian-native (Forge, TypeScript)
 ├── atlassian-remote/     UC3 — heavy compute (Python, Azure VM)
 └── dashboard/            The human-facing UI across all three UCs
+
+interpretability/         Standalone: embedding interpretability (isolated venv, no workspace deps)
 ```
 
 ---
