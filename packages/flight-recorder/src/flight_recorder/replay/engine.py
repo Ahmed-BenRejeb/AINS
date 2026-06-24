@@ -9,6 +9,7 @@ network.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from typing import Any
 
@@ -75,8 +76,10 @@ def _extract_chat_output(loaded: dict[str, Any]) -> str | None:
         if not isinstance(result, dict):
             continue
         response = result.get("response")
-        if isinstance(response, str):
-            return response[:1200]
+        if response is None:
+            continue
+        text = response if isinstance(response, str) else json.dumps(response, indent=2)
+        return text[:1200]
     return None
 
 
@@ -147,8 +150,9 @@ def replay_run(
             # Capture the original cassette response for the before/after UI diff.
             orig_step = loaded["steps"].get(step_key, {})
             orig_result = orig_step.get("body", {}).get("result", {})
-            orig_text = orig_result.get("response")
-            if isinstance(orig_text, str):
+            orig_resp = orig_result.get("response")
+            if orig_resp is not None:
+                orig_text = orig_resp if isinstance(orig_resp, str) else json.dumps(orig_resp, indent=2)
                 original_outputs[index] = orig_text[:800]
             elif "data" in orig_result:
                 data = orig_result["data"]

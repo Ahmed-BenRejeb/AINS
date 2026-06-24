@@ -160,7 +160,7 @@ export function VerdictCard({
             <span className="text-xs uppercase tracking-wide text-muted-foreground">
               Judge confidence
             </span>
-            <ConfidenceBar value={verdict.self_evaluation?.judge_confidence ?? 0} className="w-48" />
+            <ConfidenceBar value={verdict.self_evaluation?.judge_confidence ?? 0} className="w-48" showLabel={false} />
             <span className="font-mono text-sm tabular-nums text-foreground">
               {pct(verdict.self_evaluation?.judge_confidence)}
             </span>

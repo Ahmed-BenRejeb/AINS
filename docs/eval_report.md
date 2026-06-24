@@ -1,6 +1,6 @@
 # Sentinel — Evaluation Report
 
-> Generated: 2026-06-22 17:22 UTC
+> Generated: 2026-06-24 05:43 UTC
 > k (trials per task): 8
 
 ---
@@ -10,10 +10,10 @@
 | Metric | Value |
 |---|---|
 | **pass@1** (≥1 trial passed) | 100.0% |
-| **pass^8** (all 8 trials passed) | 33.3% |
-| **Consistency rate** (avg passing trials) | 70.8% |
-| **Total tasks** | 3 |
-| **Total trials** | 24 |
+| **pass^8** (all 8 trials passed) | 0.0% |
+| **Consistency rate** (avg passing trials) | 78.1% |
+| **Total tasks** | 4 |
+| **Total trials** | 32 |
 
 ---
 
@@ -21,10 +21,10 @@
 
 | Dimension | Mean Score | Pass Rate (≥0.7) |
 |---|---|---|
-| Correctness | 0.90 | 95.7% |
-| Efficiency | 0.64 | 60.9% |
-| Reasoning_Quality | 0.78 | 95.7% |
-| Safety | 0.92 | 91.7% |
+| Correctness | 0.90 | 90.3% |
+| Efficiency | 0.69 | 64.5% |
+| Reasoning_Quality | 0.75 | 80.6% |
+| Safety | 0.97 | 96.9% |
 
 ---
 
@@ -39,8 +39,8 @@
 
 ## Non-Determinism Handling
 
-Each of the 3 tasks was evaluated 8 independent times.
-pass^8 = 33.3% means only 1 tasks
+Each of the 4 tasks was evaluated 8 independent times.
+pass^8 = 0.0% means only 0 tasks
 passed ALL 8 trials consistently.
 
 Judge calibration: every LLM judgment was run twice with swapped response ordering.

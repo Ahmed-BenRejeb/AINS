@@ -7,6 +7,7 @@ their responses differ — the place to start debugging a regression.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -29,8 +30,10 @@ def _extract_rca(loaded: dict[str, Any]) -> str | None:
         if not isinstance(result, dict):
             continue
         response = result.get("response")
-        if isinstance(response, str):
-            return response[:1200]
+        if response is None:
+            continue
+        text = response if isinstance(response, str) else json.dumps(response, indent=2)
+        return text[:1200]
     return None
 
 
