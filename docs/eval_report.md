@@ -1,6 +1,6 @@
 # Sentinel — Evaluation Report
 
-> Generated: 2026-06-24 05:43 UTC
+> Generated: 2026-06-24 06:20 UTC
 > k (trials per task): 8
 
 ---
@@ -11,9 +11,9 @@
 |---|---|
 | **pass@1** (≥1 trial passed) | 100.0% |
 | **pass^8** (all 8 trials passed) | 0.0% |
-| **Consistency rate** (avg passing trials) | 78.1% |
-| **Total tasks** | 4 |
-| **Total trials** | 32 |
+| **Consistency rate** (avg passing trials) | 70.0% |
+| **Total tasks** | 5 |
+| **Total trials** | 40 |
 
 ---
 
@@ -21,10 +21,10 @@
 
 | Dimension | Mean Score | Pass Rate (≥0.7) |
 |---|---|---|
-| Correctness | 0.90 | 90.3% |
-| Efficiency | 0.69 | 64.5% |
-| Reasoning_Quality | 0.75 | 80.6% |
-| Safety | 0.97 | 96.9% |
+| Safety | 0.95 | 95.0% |
+| Correctness | 0.89 | 94.7% |
+| Efficiency | 0.68 | 60.5% |
+| Reasoning_Quality | 0.78 | 86.8% |
 
 ---
 
@@ -39,7 +39,7 @@
 
 ## Non-Determinism Handling
 
-Each of the 4 tasks was evaluated 8 independent times.
+Each of the 5 tasks was evaluated 8 independent times.
 pass^8 = 0.0% means only 0 tasks
 passed ALL 8 trials consistently.
 

@@ -159,6 +159,32 @@ def replay_run(
                 if isinstance(data, list) and data:
                     dims = len(data[0]) if isinstance(data[0], list) else "?"
                     original_outputs[index] = f"(embedding vector: {len(data)} × {dims}-dim)"
+    # When the chat step is one of the injected steps, output_preview should
+    # show the *injected* response (the "after"), not the cassette original.
+    # Walk the order in reverse to find the chat step key (has result.response).
+    chat_step_key: str | None = None
+    for sk in reversed(order):
+        step_body = loaded["steps"].get(sk, {}).get("body")
+        if isinstance(step_body, dict):
+            step_result = step_body.get("result")
+            if isinstance(step_result, dict) and step_result.get("response") is not None:
+                chat_step_key = sk
+                break
+    injected_preview: str | None = None
+    if chat_step_key and chat_step_key in injections:
+        override = injections[chat_step_key]
+        if isinstance(override, dict):
+            override_result = override.get("body", {})
+            if isinstance(override_result, dict):
+                override_result = override_result.get("result", {})
+            if isinstance(override_result, dict):
+                inj_resp = override_result.get("response")
+                if inj_resp is not None:
+                    injected_preview = (
+                        inj_resp if isinstance(inj_resp, str) else json.dumps(inj_resp, indent=2)
+                    )
+                    injected_preview = injected_preview[:1200]
+
     transport = RecordingTransport(run_id, mode="replay", injections=injections)
     divergences: list[Divergence] = []
 
@@ -188,6 +214,6 @@ def replay_run(
         diverged=bool(divergences),
         divergences=divergences,
         injected_steps=sorted(applied),
-        output_preview=_extract_chat_output(loaded),
+        output_preview=injected_preview if injected_preview is not None else _extract_chat_output(loaded),
         original_outputs=original_outputs if original_outputs else None,
     )

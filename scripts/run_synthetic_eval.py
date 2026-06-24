@@ -26,14 +26,35 @@ from datetime import datetime
 
 import requests
 
+def _load_env_file(path: str) -> None:
+    """Minimal env-file loader — no dotenv dependency required."""
+    import pathlib
+    p = pathlib.Path(path)
+    if not p.exists():
+        return
+    for line in p.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+
+# Load /srv/sentinel/.env (VM) or repo-root .env, whichever exists first.
+_load_env_file("/srv/sentinel/.env")
+_load_env_file(".env")
+
 try:
     from dotenv import load_dotenv
-
-    load_dotenv()
+    import pathlib
+    _vm_env = pathlib.Path("/srv/sentinel/.env")
+    if _vm_env.exists():
+        load_dotenv(_vm_env, override=False)
+    else:
+        load_dotenv(override=False)
 except ModuleNotFoundError:
-    # python-dotenv is optional: on the VM the services already have their env
-    # (systemd EnvironmentFile) and this script only talks to them over localhost,
-    # so there is nothing to load from a repo-root .env.
     pass
 
 EVAL_API    = os.environ.get("EVAL_API_URL", "http://localhost:8000")
