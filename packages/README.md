@@ -88,7 +88,7 @@ packages/
 
 **Why it's separate:** The dashboard consumes data from multiple packages but produces none. It has no business logic. Keeping it separate means frontend and backend work don't block each other.
 
-**Language:** TypeScript (Next.js) · **Deployed on:** Cloudflare Pages or Azure VM
+**Language:** TypeScript (Next.js) · **Deployed on:** Azure VM (`sentinel-dashboard` systemd unit, port 3001, exposed at `https://dashboard.ahmedxsaad.me`)
 
 ---
 

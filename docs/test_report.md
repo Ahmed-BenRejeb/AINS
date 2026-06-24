@@ -299,15 +299,15 @@ noisier than the 70B, which is itself part of why consistency drops.
 2. **Re-seed richer runbook content.** The 0.60 floor makes retrieval work, but the
    boilerplate runbooks cap incident→runbook cosine at ~0.71. Distinct remediation
    content would lift scores and let the floor rise toward incident parity.
-3. **Add `GET /verdicts` to eval-engine.** Verdicts now persist to D1
-   (`eval_verdicts`); a read endpoint would let the dashboard's verdict screens go
-   live (they currently mock-fallback). Also backfill: the 5 E2E verdicts were filed
-   as Jira issues but not persisted (they predate the fix).
+3. ~~**Add `GET /verdicts` to eval-engine.**~~ **RESOLVED.** `GET /verdicts` and
+   `GET /verdicts/{run_id}` are now live (reading D1 `eval_verdicts`); the dashboard
+   verdict screens serve live data when a verdict is persisted.
 4. **Authenticate the public APIs** (open §13 TODO). `eval-engine` (:8000) and
    `flight-recorder` (:8001) still have no auth; `/evaluate` defaults to filing a
    Jira issue. Add the `X-Sentinel-Secret` `Depends` that `atlassian-remote` uses.
-5. **Forge deploy** remains the only major outstanding item for UC3 (CLI not
-   available on the VM — run from a workstation with an Atlassian login).
+5. ~~**Forge deploy** remains the only major outstanding item for UC3~~. **RESOLVED.**
+   Forge app v2.2.0 is deployed and installed on Jira + Confluence at
+   ahmedains.atlassian.net (status Up-to-date).
 
 ---
 

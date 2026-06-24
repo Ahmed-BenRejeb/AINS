@@ -171,5 +171,5 @@ owner "this agent is not yet reliable enough to run unattended."
 | "Did it do it *right*?" | dashboard `verdicts/<id>` | verdict + per-dimension + attribution |
 | "Can you prove/replay it?" | dashboard `replay/<id>` | recorded steps + 0 live calls on replay |
 | "Show me the raw LLM calls" | Langfuse | per-call prompt/response/latency traces |
-| "How reliable is it overall?" | dashboard home | pass rate + true pass^k + flagged count |
+| "How reliable is it overall?" | dashboard home + `/reliability` | pass rate + true pass^k + flagged count; drift + evaluator κ |
 | "What landed in Atlassian?" | Jira project AO | RCA comment + auto-filed verdict incidents |
