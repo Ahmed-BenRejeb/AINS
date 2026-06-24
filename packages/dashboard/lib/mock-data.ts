@@ -486,14 +486,31 @@ export function mockReplay(runId: string): ReplayResult {
   };
 }
 
+/** Mock inject replay: shows before/after when chat step is overridden. */
+const MOCK_RCA_INJECTED =
+  '{"root_cause_hypothesis":"INJECTED: disk I/O saturation on replica node","confidence_score":0.9,"proposed_severity":"low","severity_rationale":"Injected: scoped to one replica, no user-facing impact","evidence":["Injected override — not from live model"],"knowledge_gaps":[],"proposed_assignee_team":"Database Operations Team","duplicate_check":[]}';
+
+export function mockInjectReplay(runId: string): ReplayResult {
+  return {
+    run_id: runId,
+    recorded_steps: 2,
+    live_call_count: 0,
+    diverged: false,
+    divergences: [],
+    injected_steps: [1],
+    output_preview: MOCK_RCA_INJECTED,
+    original_outputs: { 1: MOCK_RCA_PASS },
+  };
+}
+
 export const mockBisect: BisectResult = {
   good_run_id: RUN_IDS.pass1,
-  bad_run_id: RUN_IDS.fail1,
+  bad_run_id: RUN_IDS.pass2,
   identical: false,
-  first_diverging_step: 0,
-  reason: "request diverged (different step_key)",
-  good_step_key: "llm:@cf/baai/bge-base-en-v1.5:8f3a…",
-  bad_step_key: "llm:@cf/baai/bge-base-en-v1.5:2c9e…",
+  first_diverging_step: 1,
+  reason: "response diverged (same request, different output)",
+  good_step_key: "sha256:ae847238a6f4893a3c89a88b49e46058b12edd124b6de3bf9a69a5987d0491a6",
+  bad_step_key: "sha256:ae847238a6f4893a3c89a88b49e46058b12edd124b6de3bf9a69a5987d0491a6",
   good_output: null,
   bad_output: null,
   good_rca: MOCK_RCA_PASS,

@@ -51,7 +51,24 @@ export function ReplayView({
   // Default to the last http step (the chat/RCA step) — that's the meaningful one to override.
   const [injectStep, setInjectStep] = useState(() => Math.max(0, httpSteps.length - 1));
   const [injectText, setInjectText] = useState(
-    '{"result": {"response": "{\\"root_cause_hypothesis\\": \\"INJECTED: disk I/O saturation on replica node caused replication lag\\", \\"confidence_score\\": 0.9, \\"proposed_severity\\": \\"critical\\"}"}}',
+    JSON.stringify(
+      {
+        result: {
+          response: {
+            root_cause_hypothesis: "INJECTED: disk I/O saturation on replica node",
+            confidence_score: 0.9,
+            proposed_severity: "low",
+            severity_rationale: "Injected: scoped to one replica, no user-facing impact",
+            evidence: ["Injected override — not from live model"],
+            knowledge_gaps: [],
+            proposed_assignee_team: "Database Operations Team",
+            duplicate_check: [],
+          },
+        },
+      },
+      null,
+      2,
+    ),
   );
   const [inject, setInject] = useState<Loaded<ReplayResult> | null>(null);
   const [injectLoading, setInjectLoading] = useState(false);
@@ -407,15 +424,16 @@ function ReplayResultPanel({
         </div>
       )}
 
-      {/* Inject: show before/after comparison */}
+      {/* Inject: before/after comparison */}
       {hasInject && (
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-xs text-amber-300/90">
             <FlaskConical className="h-3.5 w-3.5" aria-hidden />
             Overrode step{r.injected_steps!.length === 1 ? "" : "s"} {r.injected_steps!.join(", ")} —
-            served from the harness instead of the tape.
+            zero live API calls; the harness served the injected response instead of the tape.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
+            {/* Before: original cassette value at each injected step */}
             {r.original_outputs &&
               r.injected_steps!.map((stepIdx) => {
                 const orig = (r.original_outputs as Record<string, string>)[String(stepIdx)];
@@ -423,19 +441,22 @@ function ReplayResultPanel({
                 return (
                   <div key={stepIdx}>
                     <div className="mb-1 text-xs text-muted-foreground">
-                      Original cassette (step {stepIdx})
+                      Before — original cassette (step {stepIdx})
                     </div>
-                    <pre className="max-h-40 overflow-auto rounded bg-white/[0.03] p-2.5 font-mono text-[11px] text-foreground/70">
+                    <pre className="max-h-48 overflow-auto rounded bg-white/[0.03] p-2.5 font-mono text-[11px] text-foreground/70">
                       {orig}
                     </pre>
                   </div>
                 );
               })}
-            {injectedText && (
+            {/* After: what the agent received (the injected model output) */}
+            {r.output_preview && (
               <div>
-                <div className="mb-1 text-xs text-amber-300/80">Your injected value</div>
-                <pre className="max-h-40 overflow-auto rounded bg-amber-400/[0.04] border border-amber-400/20 p-2.5 font-mono text-[11px] text-foreground/80">
-                  {injectedText.slice(0, 600)}
+                <div className="mb-1 text-xs text-amber-300/80">
+                  After — injected model output
+                </div>
+                <pre className="max-h-48 overflow-auto rounded bg-amber-400/[0.04] border border-amber-400/20 p-2.5 font-mono text-[11px] text-foreground/80">
+                  {r.output_preview}
                 </pre>
               </div>
             )}
@@ -492,11 +513,12 @@ function previewOutput(output: unknown): string {
 function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
   const b = result.data;
   const requestDiverge = b.reason === "request diverged (different step_key)";
+  const responseDiverge = b.reason?.startsWith("response diverged");
   return (
     <div className="space-y-3">
       <ResultBanner
         ok={b.identical}
-        okText="Runs are identical. No divergence found."
+        okText="Runs are identical. Byte-for-byte reproducible — same requests, same responses."
         badText={`First divergence at step ${b.first_diverging_step ?? "?"}.`}
       />
       {!b.identical && (
@@ -504,9 +526,16 @@ function BisectResultPanel({ result }: { result: Loaded<BisectResult> }) {
           <div className="text-sm text-foreground/90">{b.reason}</div>
           {requestDiverge && (
             <p className="text-xs text-muted-foreground border-l-2 border-accent/40 pl-3">
-              Step {b.first_diverging_step} had different inputs (different incident text → different
-              embedding hash). To see a response-level divergence, compare two runs that analyzed the
-              same incident. The RCA outputs below are always compared regardless.
+              Step {b.first_diverging_step} had different inputs (different incident text leads to a
+              different embedding hash). To see response-level non-determinism, compare two runs of
+              the same incident — identical requests but different LLM outputs.
+            </p>
+          )}
+          {responseDiverge && (
+            <p className="text-xs text-amber-300/80 border-l-2 border-amber-400/40 pl-3">
+              Same request, different model output. This is LLM non-determinism: identical inputs
+              produced different RCAs. This is exactly what <code className="font-mono">pass^k</code> catches
+              — a single trial may pass, but the agent is not reliably reproducible.
             </p>
           )}
         </div>

@@ -20,6 +20,7 @@ import {
   mockBisect,
   mockDrift,
   mockEvaluatorQuality,
+  mockInjectReplay,
   mockReplay,
   mockRunDetail,
   mockRuns,
@@ -280,10 +281,11 @@ export async function postReplay(
   useMock: boolean,
   inject?: Record<number, unknown>,
 ): Promise<Loaded<ReplayResult>> {
-  if (useMock) return mock(mockReplay(runId));
+  const hasInject = inject && Object.keys(inject).length > 0;
+  if (useMock) return mock(hasInject ? mockInjectReplay(runId) : mockReplay(runId));
   try {
     const body: Record<string, unknown> = { run_id: runId };
-    if (inject && Object.keys(inject).length > 0) body.inject = inject;
+    if (hasInject) body.inject = inject;
     const result = await fetchJson<ReplayResult>(
       `${FLIGHT_RECORDER_API}/replay`,
       { method: "POST", body: JSON.stringify(body) },
@@ -291,7 +293,7 @@ export async function postReplay(
     );
     return live(result);
   } catch (err) {
-    return fallback(mockReplay(runId), err);
+    return fallback(hasInject ? mockInjectReplay(runId) : mockReplay(runId), err);
   }
 }
 
