@@ -8,7 +8,24 @@
 
 `AINS Hackathon 2026` · in partnership with [Vectors](https://covectors.io) · *AI for Enterprise Automation*
 
+![status](https://img.shields.io/badge/status-final%20%E2%80%94%20complete-2ea44f?style=flat-square)
+![tests](https://img.shields.io/badge/tests-167%20Python%20%2B%2025%20TS%20green-2ea44f?style=flat-square)
+![typecheck](https://img.shields.io/badge/mypy%20--strict%20%C2%B7%20ruff-clean-2ea44f?style=flat-square)
+![deployed](https://img.shields.io/badge/Forge%20%C2%B7%20VM%20%C2%B7%20dashboard-live-2ea44f?style=flat-square)
+![python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
+![next](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=nextdotjs&logoColor=white)
+
 [Architecture](docs/ARCHITECTURE.md) · [Eval Report](docs/eval_report.md) · [Scalability & Reliability](docs/scalability_reliability.md) · [How It Works](docs/how_it_works.md) · [Open-Contribution Specs](spec/)
+
+</div>
+
+---
+
+<div align="center">
+
+<img src="docs/screenshots/dashboard-overview.png" alt="Sentinel dashboard overview: the flight recorder for AI agents, with live pass-rate ring and recent verdicts" width="92%">
+
+<sub>**The dashboard** — flight-recorder home with live pass-rate telemetry and recent verdicts · `dashboard.ahmedxsaad.me`</sub>
 
 </div>
 
@@ -60,6 +77,14 @@ The three layers share one [OpenTelemetry GenAI](https://opentelemetry.io/docs/s
 | **Survives chaos** | 5 pods killed mid‑traffic → **100% availability, zero downtime**, automatic self‑healing |
 | **Engineering rigour** | **167 Python tests** green; `mypy --strict` + `ruff` clean; Helm lint clean |
 
+<div align="center">
+
+<img src="docs/screenshots/reliability-drift-evaluator.png" alt="Sentinel reliability screen: behavioural drift panel and evaluator-quality panel showing Cohen's kappa and per-label human agreement" width="92%">
+
+<sub>**Reliability over time** — behavioural drift across run windows, and judge-vs-human agreement as chance-corrected **Cohen's κ** (not flattering raw accuracy).</sub>
+
+</div>
+
 ---
 
 ## Live system
@@ -76,6 +101,14 @@ The full stack runs on an Azure VM behind a Cloudflare Tunnel; the Forge app is 
 | Rovo Agent | installed on Jira **+** Confluence at `ahmedains.atlassian.net` |
 
 > Public hostnames sit behind Cloudflare's bot challenge — browsers pass, `curl` gets a `403` (expected, not an outage).
+
+<div align="center">
+
+<img src="docs/screenshots/jira-filed-incidents.png" alt="Jira AO project board showing Sentinel eval verdicts filed as auditable incidents, reported by the agent" width="92%">
+
+<sub>**The loop closes in Jira** — every evaluated run is filed back as an auditable AO incident with its verdict, so reliability lives where the team already works.</sub>
+
+</div>
 
 ---
 

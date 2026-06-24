@@ -1,5 +1,7 @@
 # trace-core / CLAUDE.md
 
+> **✅ PROJECT COMPLETE — FINAL VERSION.** Shared schema is stable and frozen; `schema.py` ↔ `schema.ts` in sync.
+>
 > Read the root `CLAUDE.md` first. This file adds package-specific context.
 
 ## What This Package Does

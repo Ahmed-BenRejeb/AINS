@@ -1,5 +1,7 @@
 # dashboard / CLAUDE.md
 
+> **✅ PROJECT COMPLETE — FINAL VERSION.** All screens live & deployed: overview, runs, trace, verdict, replay (+ injection/bisect), drift, and `/reliability` (drift + evaluator quality). Live at `dashboard.ahmedxsaad.me`.
+>
 > Read the root `CLAUDE.md` first. This file adds package-specific context.
 
 ## What This Package Does

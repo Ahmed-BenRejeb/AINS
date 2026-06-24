@@ -1,5 +1,7 @@
 # eval-engine / CLAUDE.md
 
+> **✅ PROJECT COMPLETE — FINAL VERSION.** UC1 done & live: safety + code grader + calibrated LLM judge, DAG attribution, pass^k, drift detection, evaluator-quality (Cohen's κ), verdicts filed to Jira + persisted to D1.
+>
 > Read the root `CLAUDE.md` first, especially Section 0 (deployed infra) and Section 7 (CF Workers AI pattern).
 > This package runs on the Azure VM at port 8000, exposed at `eval.ahmedxsaad.me`.
 

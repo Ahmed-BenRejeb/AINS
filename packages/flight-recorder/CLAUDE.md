@@ -1,5 +1,7 @@
 # flight-recorder / CLAUDE.md
 
+> **✅ PROJECT COMPLETE — FINAL VERSION.** UC2 done & live: record/replay/bisect + mid-replay divergence injection, hash-chained audit, 0-live-call deterministic replay.
+>
 > Read the root `CLAUDE.md` first, especially Section 0 (deployed infra).
 > This package runs on the Azure VM at port 8001, exposed at `flight.ahmedxsaad.me`.
 

@@ -6,7 +6,12 @@ overview/health, recorded agent runs, per-run execution traces, eval verdicts wi
 failure attribution, and deterministic replay/bisect. Dark, premium dev-tool feel
 (Vercel/Linear), Framer Motion throughout. Pure display layer — produces no data.
 
-Runs on **port 3001**.
+Runs on **port 3001**. Live at **`https://dashboard.ahmedxsaad.me`**.
+
+<p align="center">
+  <img src="../../docs/screenshots/dashboard-overview.png" alt="Dashboard overview screen" width="49%">
+  <img src="../../docs/screenshots/reliability-drift-evaluator.png" alt="Reliability screen: drift + evaluator quality" width="49%">
+</p>
 
 ## Screens
 

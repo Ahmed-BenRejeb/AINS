@@ -1,5 +1,7 @@
 # atlassian-remote / CLAUDE.md
 
+> **✅ PROJECT COMPLETE — FINAL VERSION.** UC3 backend done & live: embeddings, xqdrant search, RCA drafting, semantic duplicate resolver; `/analyze` records (UC2) + evals (UC1) the full Phase-4 loop.
+>
 > Read the root `CLAUDE.md` first, especially Section 0 (deployed infrastructure).
 > This package runs on the Azure VM at port 8080, exposed at `remote.ahmedxsaad.me`.
 

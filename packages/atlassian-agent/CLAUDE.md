@@ -1,5 +1,7 @@
 # atlassian-agent / CLAUDE.md
 
+> **✅ PROJECT COMPLETE — FINAL VERSION.** UC3 Forge agent done & deployed (v2.2.0): Rovo agent + 7 actions, installed on Jira **and** Confluence at ahmedains.atlassian.net.
+>
 > Read the root `CLAUDE.md` first, especially Section 0 (deployed infra).
 > This package deploys to Atlassian's Forge infrastructure via `make deploy-forge`.
 
