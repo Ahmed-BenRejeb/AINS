@@ -22,6 +22,7 @@ dependencies = [
     "fastapi>=0.110",        # the run/replay/bisect API on port 8001
     "uvicorn>=0.29",         # ASGI server for api.py
     "langfuse>=4.9.1",
+    "prometheus-fastapi-instrumentator>=7.0",  # exposes /metrics for Prometheus scraping (observability)
 ]
 
 # Standard src-layout: the importable package lives at src/flight_recorder/, so the

@@ -1,0 +1,28 @@
+{{- if .Values.monitoring.enabled }}
+{{- /*
+  One ServiceMonitor per FastAPI service so Prometheus scrapes /metrics. Gated on
+  monitoring.enabled (default false) because it needs the Prometheus Operator CRDs
+  (installed by kube-prometheus-stack — see deploy/observability/README.md).
+*/}}
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    release: {{ $.Values.monitoring.releaseLabel }}
+    {{- include "sentinel.labels" $ | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames: [{{ $.Release.Namespace }}]
+  selector:
+    matchLabels: { app: {{ $name }} }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ $.Values.monitoring.interval }}
+{{- end }}
+{{- end }}

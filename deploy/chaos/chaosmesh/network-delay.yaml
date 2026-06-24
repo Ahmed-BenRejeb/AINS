@@ -1,0 +1,22 @@
+# Chaos Mesh — inject 200ms±50ms latency into eval-engine for 2 minutes.
+# Proves the service (and its callers' timeouts/retries) tolerate a slow network.
+#
+#   kubectl apply -f deploy/chaos/chaosmesh/network-delay.yaml
+#   # observe p95 latency rise in Grafana (panel "p95 request latency"), then recover
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: eval-engine-network-delay
+  namespace: sentinel
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces: [sentinel]
+    labelSelectors:
+      app: eval-engine
+  delay:
+    latency: "200ms"
+    jitter: "50ms"
+    correlation: "50"
+  duration: "2m"

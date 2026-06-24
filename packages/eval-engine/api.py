@@ -26,6 +26,7 @@ from eval_engine.verdict_store import get_verdict, list_verdicts
 from eval_engine.verdicts.reporter import evaluate_gold_set, evaluate_run
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 from trace_core import (
     PASS_AT_K_TRIALS,
@@ -41,6 +42,11 @@ app = FastAPI(title="Sentinel Eval Engine", version="0.1.0")
 
 # Initialise Langfuse observability at startup (no-op if LANGFUSE_* is unset).
 init_langfuse()
+
+# Expose Prometheus metrics at GET /metrics (request count/latency/in-progress per
+# endpoint) for the in-cluster kube-prometheus-stack to scrape. Left unauthenticated
+# like /health so the ServiceMonitor can reach it; the service is internal-only.
+Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
 
 @app.exception_handler(httpx.HTTPStatusError)

@@ -23,6 +23,7 @@ dependencies = [
     "uvicorn>=0.29",         # ASGI server for api.py
     "boto3>=1.34",           # read the full run cassette from MinIO (sentinel-cassettes)
     "langfuse>=4.9.1",
+    "prometheus-fastapi-instrumentator>=7.0",  # exposes /metrics for Prometheus scraping (observability)
 ]
 
 # Standard src-layout: importable package at src/eval_engine/, imported as
