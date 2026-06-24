@@ -1,0 +1,279 @@
+% =====================================================================
+%  Sentinel - Concept Presentation (AINS Hackathon 2026)
+%  Compile:  pdflatex concept.tex   (run twice for page totals)
+%  Self-contained custom "mission-control" Beamer theme. pdflatex-safe,
+%  no external theme/font packages (uses helvet). ASCII-safe source.
+% =====================================================================
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{textcomp}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{calc,positioning}
+
+\graphicspath{{../diagrams/}{./}}
+\setbeamertemplate{navigation symbols}{}
+\setbeamersize{text margin left=0.9cm,text margin right=0.9cm}
+
+% ---------------- palette ----------------
+\definecolor{ink}{HTML}{0D1418}
+\definecolor{ink2}{HTML}{1E293B}
+\definecolor{paper}{HTML}{FBFCFD}
+\definecolor{panel}{HTML}{F2F5F8}
+\definecolor{emerald}{HTML}{0E9C8A}
+\definecolor{emlight}{HTML}{34E5B0}
+\definecolor{slate}{HTML}{47576B}
+\definecolor{muted}{HTML}{8896AB}
+\definecolor{cblue}{HTML}{2F6FED}
+\definecolor{cteal}{HTML}{12A594}
+\definecolor{camber}{HTML}{C9851F}
+\definecolor{cindigo}{HTML}{6B57E0}
+\definecolor{crose}{HTML}{D24E81}
+\definecolor{linec}{HTML}{D7DEE7}
+
+% ---------------- base colors / fonts ----------------
+\setbeamercolor{normal text}{fg=ink2,bg=white}
+\setbeamercolor{structure}{fg=emerald}
+\setbeamercolor{itemize item}{fg=emerald}
+\setbeamerfont{itemize/enumerate body}{size=\small}
+\setbeamerfont{itemize/enumerate subbody}{size=\footnotesize}
+\setbeamertemplate{itemize item}{\small\raisebox{0.15ex}{\textbullet}}
+\setbeamertemplate{itemize subitem}{\scriptsize\raisebox{0.15ex}{\textendash}}
+
+% ---------------- frametitle ----------------
+\setbeamertemplate{frametitle}{%
+  \vspace*{0.40cm}%
+  {\color{ink}\bfseries\Large\insertframetitle}\par
+  \vspace{2pt}{\color{emerald}\rule{1.9cm}{2.4pt}}%
+  \ifx\insertframesubtitle\empty\else
+    \hspace{6pt}{\color{muted}\small\insertframesubtitle}%
+  \fi\par\vspace{0.10cm}
+}
+
+% ---------------- footline ----------------
+\setbeamertemplate{footline}{%
+  \hbox to \paperwidth{\hspace{0.9cm}%
+    \color{muted}\scriptsize
+    {\color{emerald}\rule[0.05em]{0.5em}{0.5em}}\;\textbf{SENTINEL}\;\textperiodcentered\; AI Agent Reliability Platform
+    \hfill
+    AINS Hackathon 2026 \quad \color{ink2}\insertframenumber\,/\,\inserttotalframenumber
+    \hspace{0.9cm}}\vspace{0.30cm}%
+}
+
+% ---------------- helpers ----------------
+% \card{width}{accent}{title}{body}
+\newcommand{\card}[4]{%
+  \begin{tikzpicture}
+    \node[rounded corners=6pt, draw=linec, line width=0.7pt, fill=white,
+          inner sep=9pt, text width=#1, anchor=north west] {%
+      \begin{minipage}{#1}
+        {\color{#2}\rule{20pt}{2.6pt}}\par\vspace{5pt}
+        {\bfseries\color{ink}#3}\par\vspace{3pt}
+        {\footnotesize\color{slate}#4}
+      \end{minipage}};
+  \end{tikzpicture}%
+}
+% \statcard{accent}{BIG}{label}
+\newcommand{\statcard}[3]{%
+  \begin{tikzpicture}
+    \node[rounded corners=5pt, draw=linec, line width=0.7pt, fill=panel,
+          inner sep=6pt, text width=2.0cm, minimum height=1.25cm, anchor=north west, align=left] {%
+      {\color{#1}\bfseries\large #2}\par\vspace{1pt}
+      {\scriptsize\color{slate}#3}};
+  \end{tikzpicture}%
+}
+% \pill{accent}{text}
+\newcommand{\pill}[2]{\tikz[baseline=-0.6ex]\node[rounded corners=3pt, fill=#1!12, draw=#1, line width=0.5pt, inner xsep=5pt, inner ysep=2pt, text=#1!75!black]{\scriptsize\bfseries #2};}
+\newcommand{\dt}{\,\textperiodcentered\,}
+
+% =====================================================================
+\begin{document}
+
+% ----------------------------- TITLE -----------------------------
+{\setbeamertemplate{footline}{}
+\begin{frame}[plain]
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[ink] (current page.south west) rectangle (current page.north east);
+  \foreach \i in {0,...,9}{\draw[emlight!16, line width=0.7pt]
+     ($(current page.north east)+(-0.3,-0.25)+(\i*-0.62,0)$) -- ++(-2.2,-2.2);}
+  \fill[emerald] ([xshift=1.15cm,yshift=2.05cm]current page.west) circle (0.15cm);
+  \node[anchor=west, text=emlight] at ([xshift=1.45cm,yshift=2.05cm]current page.west)
+        {\footnotesize\bfseries AINS HACKATHON 2026 \;\textperiodcentered\; AINS 4.0 $\times$ Vectors};
+  \node[anchor=west, text=white] at ([xshift=1.1cm,yshift=0.62cm]current page.west)
+        {\fontsize{46}{50}\selectfont\bfseries SENTINEL};
+  \node[anchor=west, text=emlight] at ([xshift=1.15cm,yshift=-0.72cm]current page.west)
+        {\Large The reliability layer for enterprise AI agents};
+  \node[anchor=west, text=muted, text width=11.5cm] at ([xshift=1.15cm,yshift=-1.95cm]current page.west)
+        {\small Use Cases 1 + 2 + 3, unified --- continuous evaluation, deterministic
+         replay, and a real Atlassian Rovo agent we instrument and dogfood.};
+  \node[anchor=west, text=white!75] at ([xshift=1.15cm,yshift=-3.15cm]current page.west)
+        {\footnotesize Ahmed Saad \quad\textperiodcentered\quad Moetez Fradi \quad\textperiodcentered\quad Ahmed Ben Rejeb};
+\end{tikzpicture}
+\end{frame}}
+
+% ----------------------------- PROBLEM -----------------------------
+\begin{frame}{Enterprises ship agents they cannot trust}{The problem}
+\vspace{0.15cm}
+\begin{columns}[T]
+  \column{0.60\textwidth}
+  \begin{itemize}\setlength\itemsep{8pt}
+    \item \textbf{Non-deterministic.} The same instruction yields different tool calls and outputs each run.
+    \item \textbf{Failures are silent.} It finishes its calls --- yet mis-triages a ticket or overwrites a page.
+    \item \textbf{Exact-match tests fail.} They assume one correct output; agent trajectories have many.
+    \item \textbf{Failures don't reproduce.} Re-running changes the output and re-fires side effects.
+  \end{itemize}
+  \column{0.38\textwidth}
+  \statcard{crose}{12/80}{tickets mis-routed, \emph{zero} alerts}\hfill
+  \statcard{camber}{0}{reproducible replays from a log}\\[7pt]
+  \statcard{cindigo}{?}{which step actually failed}\hfill
+  \statcard{cblue}{3 wk}{later: ``what did it see?''}
+\end{columns}
+\vspace{0.3cm}
+\begin{center}\footnotesize\color{slate}
+No continuous evaluation \dt\ no deterministic debugging \dt\ no audit trail for production AI agents.
+\end{center}
+\end{frame}
+
+% ----------------------------- TARGET USERS -----------------------------
+\begin{frame}{Who we build for}{Target users}
+\vspace{0.2cm}
+\begin{columns}[T]
+  \column{0.25\textwidth}\card{\linewidth}{cblue}{AI platform owners}{Need \emph{continuous} evaluation and drift detection on every production run --- not a one-shot pre-launch check.}
+  \column{0.25\textwidth}\card{\linewidth}{camber}{SRE \& devtools teams}{Run agents in prod and must debug failures deterministically, without re-firing real side effects.}
+  \column{0.25\textwidth}\card{\linewidth}{cteal}{Marketplace AI vendors}{Ship on Atlassian Forge / Rovo and need auditable verdicts to prove an agent is safe to release.}
+  \column{0.25\textwidth}\card{\linewidth}{cindigo}{Risk \& compliance}{Need a tamper-evident record of exactly what an agent saw and did, weeks after the fact.}
+\end{columns}
+\vspace{0.5cm}
+\begin{center}\small\color{slate}
+Scoped to \pill{emerald}{incident-response} agents on \pill{emerald}{Atlassian JSM} --- a specific agent type and task domain.
+\end{center}
+\end{frame}
+
+% ----------------------------- SOLUTION -----------------------------
+\begin{frame}{One platform, three jobs}{Proposed solution}
+\vspace{0.1cm}
+\begin{columns}[T]
+  \column{0.33\textwidth}\card{\linewidth}{camber}{UC2 \dt\ Flight Recorder}{Transparently \textbf{captures} every LLM and tool call; replays a run \textbf{deterministically} with zero live calls, plus bisect and mid-replay injection.}
+  \column{0.33\textwidth}\card{\linewidth}{cindigo}{UC1 \dt\ Eval Engine}{\textbf{Judges} those traces into auditable verdicts: multi-level scores, per-step failure attribution, pass$^{k}$ reliability, and drift.}
+  \column{0.33\textwidth}\card{\linewidth}{cteal}{UC3 \dt\ Atlassian Agent}{A \textbf{real} Rovo incident-response agent on Forge --- instrumented by UC1+UC2; its verdicts land back in Jira as Incidents.}
+\end{columns}
+\vspace{0.22cm}
+\begin{center}
+\begin{tikzpicture}
+\node[rounded corners=7pt, fill=ink, inner sep=9pt, text width=0.84\textwidth, align=center, text=white]
+{\itshape ``We built the reliability infrastructure a Marketplace AI vendor
+needs --- and dogfooded it on a real Atlassian agent.''};
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
+% ----------------------------- CORE AI MECHANISM -----------------------------
+\begin{frame}{AI is the mechanism, not a feature}{Core AI mechanism}
+{\footnotesize\color{slate}Remove the models and nothing works --- every output is reasoning over live signals, not keyword search.}
+\vspace{0.12cm}
+\begin{columns}[T]
+  \column{0.49\textwidth}
+  \begin{itemize}\setlength\itemsep{3pt}
+    \item \textbf{Semantic retrieval} --- BGE-768 finds similar incidents and runbooks, with attribution.
+    \item \textbf{Structured generation} --- Llama-3.1-8B drafts the RCA and duplicate verdict as typed objects.
+    \item \textbf{LLM-as-judge} --- scores 4 rubric dimensions, run twice with order reversed to calibrate bias.
+  \end{itemize}
+  \column{0.49\textwidth}
+  \begin{itemize}\setlength\itemsep{3pt}
+    \item \textbf{Safety classifier} --- Llama-Guard-3 pre-filters every transcript.
+    \item \textbf{Failure attribution} --- a DAG blames retrieval, planning, or execution.
+    \item \textbf{Evaluating the evaluator} --- Cohen's $\kappa$ vs.\ a gold set; centroid \textbf{drift} catches shifts a pass/fail can't.
+  \end{itemize}
+\end{columns}
+\vspace{0.1cm}
+\begin{center}\footnotesize
+\pill{cteal}{bge-base-en-v1.5}\;\; \pill{cindigo}{llama-3.1-8b-instruct}\;\; \pill{crose}{llama-guard-3-8b}\;\; {\color{muted}on Cloudflare Workers AI}
+\end{center}
+\end{frame}
+
+% ----------------------------- ARCHITECTURE -----------------------------
+\begin{frame}{System architecture}{Components \dt\ data flow \dt\ AI pipeline}
+\begin{center}
+\includegraphics[width=0.99\textwidth]{architecture.png}
+\end{center}
+\vspace{-0.05cm}
+{\footnotesize\color{slate}One incident, end to end (1--9): \texttt{/analyze} $\to$ embed $\to$ semantic
+search $\to$ structured RCA --- \emph{every call taped} --- $\to$ \texttt{/evaluate} $\to$
+verdict persisted $\to$ Jira Incident on failure $\to$ replay link returned.}
+\end{frame}
+
+% ----------------------------- EXPLAINABILITY -----------------------------
+\begin{frame}{Every verdict is traceable}{Explainability \& auditability}
+\vspace{0.2cm}
+\begin{columns}[T]
+  \column{0.25\textwidth}\card{\linewidth}{cindigo}{Per-step attribution}{``Step 2, retrieval, returned no results, confidence 0.7'' --- not just ``it failed''.}
+  \column{0.25\textwidth}\card{\linewidth}{cteal}{Confidence \& self-eval}{The judge scores its own verdict and \textbf{flags for a human} below threshold.}
+  \column{0.25\textwidth}\card{\linewidth}{camber}{Tamper-evident audit}{Hash-chained, HMAC-signed, write-ahead record of every step the agent took.}
+  \column{0.25\textwidth}\card{\linewidth}{cblue}{Deterministic replay}{Re-run the exact trajectory from tape --- inspect any prompt, inject a fix, see it diverge.}
+\end{columns}
+\vspace{0.55cm}
+\begin{center}\small\color{slate}
+A non-AI engineer can read the verdict and act: \emph{what it should have done, what it did, where it diverged, and the next step.}
+\end{center}
+\end{frame}
+
+% ----------------------------- EVALUATION -----------------------------
+\begin{frame}{We evaluate the evaluator}{Evaluation \& rigour}
+\begin{columns}[T]
+  \column{0.57\textwidth}
+  \begin{itemize}\setlength\itemsep{5pt}
+    \item \textbf{pass$^{k}$ (k=8)}, the $\tau$-bench metric --- all 8 trials must pass; exposes inconsistency pass@1 hides.
+    \item \textbf{Cohen's $\kappa$} --- judge-vs-human agreement on a gold set, chance-corrected (a constant ``pass'' scores $\approx 0$).
+    \item \textbf{Drift} --- pass-rate, per-dimension, and semantic output-embedding shift across run windows.
+    \item \textbf{Non-determinism addressed} --- calibration flips an order-sensitive verdict to \emph{uncertain}, not a guess.
+  \end{itemize}
+  \column{0.40\textwidth}
+  \hspace*{0.1cm}\statcard{cindigo}{100\%}{pass@1 (single-trial)}\hfill
+  \statcard{crose}{0\%}{pass$^{8}$: reliability gap}\\[7pt]
+  \hspace*{0.1cm}\statcard{cteal}{0.60}{Cohen's $\kappa$ (moderate)}\hfill
+  \statcard{camber}{70\%}{consistency rate}
+  \par\vspace{7pt}\hspace*{0.1cm}{\scriptsize\color{muted}Test set: 100 seeded incidents, 10 root-cause categories. Full numbers in the Evaluation Report.}
+\end{columns}
+\end{frame}
+
+% ----------------------------- VALUE PROPOSITION -----------------------------
+\begin{frame}{Why Sentinel wins}{Value proposition}
+\vspace{0.2cm}
+\begin{columns}[T]
+  \column{0.25\textwidth}\card{\linewidth}{cteal}{Engineering depth \pill{cteal}{50\%}}{Infrastructure-grade: transport-level interception, hash-chained audit, calibrated judging --- the AI \emph{is} the system.}
+  \column{0.25\textwidth}\card{\linewidth}{cblue}{Prototype quality \pill{cblue}{25\%}}{End-to-end demo on realistic synthetic data, live and deployed, with a graceful mock fallback.}
+  \column{0.25\textwidth}\card{\linewidth}{cindigo}{Explainability \pill{cindigo}{15\%}}{Attribution, confidence, audit trail, and deterministic replay on every verdict.}
+  \column{0.25\textwidth}\card{\linewidth}{camber}{Eval \& rigour \pill{camber}{10\%}}{A real protocol: pass$^{k}$, Cohen's $\kappa$, drift --- and we evaluate the evaluator.}
+\end{columns}
+\vspace{0.5cm}
+\begin{center}\small\color{slate}
+Bonus: an open \pill{emerald}{OTel GenAI replay} spec and an \pill{emerald}{MCP audit-trail} proposal --- documented protocol contributions.
+\end{center}
+\end{frame}
+
+% ----------------------------- CLOSING -----------------------------
+{\setbeamertemplate{footline}{}
+\begin{frame}[plain]
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[ink] (current page.south west) rectangle (current page.north east);
+  \fill[emerald] ([xshift=1.15cm,yshift=2.35cm]current page.west) circle (0.15cm);
+  \node[anchor=west, text=emlight] at ([xshift=1.45cm,yshift=2.35cm]current page.west)
+        {\footnotesize\bfseries LIVE \& DEPLOYED};
+  \node[anchor=west, text=white] at ([xshift=1.1cm,yshift=1.15cm]current page.west)
+        {\fontsize{30}{34}\selectfont\bfseries Reliability infrastructure,};
+  \node[anchor=west, text=white] at ([xshift=1.1cm,yshift=0.25cm]current page.west)
+        {\fontsize{30}{34}\selectfont\bfseries dogfooded on a real agent.};
+  \node[anchor=west, text=muted, text width=12cm] at ([xshift=1.15cm,yshift=-1.1cm]current page.west)
+        {\small Three Python services on Azure behind Cloudflare Tunnel \dt\ a Forge Rovo
+         agent installed on Jira \& Confluence \dt\ a Next.js mission-control dashboard.};
+  \node[anchor=west, text=emlight] at ([xshift=1.15cm,yshift=-2.5cm]current page.west)
+        {\footnotesize\bfseries github.com/ahmedxsaad/AINS \quad\textperiodcentered\quad dashboard.ahmedxsaad.me};
+\end{tikzpicture}
+\end{frame}}
+
+\end{document}
