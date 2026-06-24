@@ -10,8 +10,11 @@
 #   EVAL_ENGINE_INTERNAL_URL=http://eval-engine:8000
 #
 # ── Builder ───────────────────────────────────────────────────────────────────
-FROM node:20-slim AS builder
-RUN corepack enable
+# Node 22 + a PINNED pnpm: `corepack enable` alone pulls the latest pnpm (11.x),
+# which needs Node 22.13+ (node:sqlite) and breaks on older bases. Pinning to the
+# repo's pnpm (10.33.4) keeps the build reproducible.
+FROM node:22-slim AS builder
+RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
 WORKDIR /app
 
 # Deps first (layer cache). The dashboard has no workspace-internal deps.
@@ -23,8 +26,7 @@ COPY packages/dashboard/ ./
 RUN pnpm build
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM node:20-slim AS runtime
-RUN corepack enable
+FROM node:22-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN useradd --create-home --uid 10001 sentinel
@@ -34,4 +36,5 @@ COPY --from=builder --chown=sentinel:sentinel /app /app
 USER sentinel
 
 EXPOSE 3001
-CMD ["pnpm", "start"]
+# Run Next directly (no pnpm/corepack needed at runtime); matches the VM's systemd unit.
+CMD ["node", "node_modules/next/dist/bin/next", "start", "-p", "3001"]
