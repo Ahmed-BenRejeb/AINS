@@ -1,0 +1,23 @@
+# Chaos Mesh — CPU stress on eval-engine for 3 minutes.
+# Ties chaos to SCALABILITY: burning CPU inside the pods pushes utilization past the
+# KEDA ScaledObject's 50% target, so KEDA scales eval-engine out (1 -> up to 5). When
+# the stress ends, replicas settle back to 1. Watch the "eval-engine replicas" panel.
+#
+#   kubectl apply -f deploy/chaos/chaosmesh/cpu-stress.yaml
+#   kubectl -n sentinel get hpa,pods -w
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: eval-engine-cpu-stress
+  namespace: sentinel
+spec:
+  mode: all
+  selector:
+    namespaces: [sentinel]
+    labelSelectors:
+      app: eval-engine
+  stressors:
+    cpu:
+      workers: 1
+      load: 80          # ~80% of one core per worker
+  duration: "3m"

@@ -22,12 +22,18 @@ from flight_recorder.langfuse_client import init_langfuse
 from flight_recorder.replay.bisect import BisectResult, bisect_runs
 from flight_recorder.replay.engine import ReplayResult, replay_run
 from flight_recorder.storage import d1_client
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Sentinel Flight Recorder", version="0.1.0")
 
 # Initialise Langfuse observability at startup (no-op if LANGFUSE_* is unset).
 init_langfuse()
+
+# Expose Prometheus metrics at GET /metrics (request count/latency/in-progress per
+# endpoint) for the in-cluster kube-prometheus-stack to scrape. Left unauthenticated
+# like /health so the ServiceMonitor can reach it; the service is internal-only.
+Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
 _RUN_ID_RE = re.compile(r"^[0-9a-fA-F]{32}$|^[0-9a-fA-F-]{36}$")
 

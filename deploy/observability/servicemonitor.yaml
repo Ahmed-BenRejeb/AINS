@@ -1,0 +1,64 @@
+# ServiceMonitors — tell Prometheus to scrape /metrics on the three FastAPI services.
+#
+# Each app exposes Prometheus metrics at GET /metrics (prometheus-fastapi-instrumentator,
+# wired in packages/*/api.py). A ServiceMonitor selects the Service by its `app` label and
+# scrapes the named `http` port. Requires the Prometheus Operator CRDs (installed by the
+# kube-prometheus-stack chart) — apply this AFTER that chart is up.
+#
+#   kubectl apply -f deploy/observability/servicemonitor.yaml
+#
+# The `release: kube-prometheus-stack` label matches the default stack release name; it is
+# belt-and-suspenders since the values file also sets serviceMonitorSelectorNilUsesHelmValues=false.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: eval-engine
+  namespace: sentinel
+  labels:
+    app: eval-engine
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: ["sentinel"]
+  selector:
+    matchLabels: { app: eval-engine }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: flight-recorder
+  namespace: sentinel
+  labels:
+    app: flight-recorder
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: ["sentinel"]
+  selector:
+    matchLabels: { app: flight-recorder }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: atlassian-remote
+  namespace: sentinel
+  labels:
+    app: atlassian-remote
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: ["sentinel"]
+  selector:
+    matchLabels: { app: atlassian-remote }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

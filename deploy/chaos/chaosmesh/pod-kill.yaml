@@ -1,0 +1,24 @@
+# Chaos Mesh — recurring pod-kill on eval-engine (the "real tool" path).
+# Requires Chaos Mesh installed (see deploy/chaos/README.md). A Schedule re-runs the
+# PodChaos every 30s so you can watch the Deployment self-heal continuously.
+#
+#   kubectl apply -f deploy/chaos/chaosmesh/pod-kill.yaml
+#   kubectl -n sentinel get pods -w        # killed pods get recreated
+#   kubectl delete -f deploy/chaos/chaosmesh/pod-kill.yaml   # stop
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: eval-engine-pod-kill
+  namespace: sentinel
+spec:
+  schedule: "@every 30s"
+  concurrencyPolicy: Forbid
+  historyLimit: 5
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: one          # kill ONE matching pod per run
+    selector:
+      namespaces: [sentinel]
+      labelSelectors:
+        app: eval-engine
