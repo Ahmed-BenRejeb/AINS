@@ -1,0 +1,106 @@
+# Sentinel Helm values. Install into a dedicated namespace:
+#   helm install sentinel deploy/helm/sentinel -n sentinel --create-namespace
+# Provide real secrets out-of-band (never commit them):
+#   helm install ... -f my-secrets.yaml   # (gitignore my-secrets.yaml)
+
+image:
+  python:
+    repository: sentinel-python
+    tag: dev
+    pullPolicy: IfNotPresent
+  dashboard:
+    repository: sentinel-dashboard
+    tag: dev
+    pullPolicy: IfNotPresent
+
+# Default resource envelope for the FastAPI services (small CPU request so KEDA's
+# CPU-utilization trigger reacts to load).
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: 500m, memory: 512Mi }
+
+# The three FastAPI services — one image, different --app-dir/--port each.
+services:
+  eval-engine:
+    appDir: packages/eval-engine
+    port: 8000
+    replicas: 1
+  flight-recorder:
+    appDir: packages/flight-recorder
+    port: 8001
+    replicas: 1
+  atlassian-remote:
+    appDir: packages/atlassian-remote
+    port: 8080
+    replicas: 1
+
+dashboard:
+  enabled: true
+  port: 3001
+  replicas: 1
+
+backends:
+  xqdrant:
+    enabled: true
+    image: qdrant/qdrant:v1.12.4
+    port: 6333
+  minio:
+    enabled: true
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    apiPort: 9000
+    consolePort: 9001
+
+keda:
+  enabled: true
+  target: eval-engine
+  minReplicas: 1
+  maxReplicas: 5
+  cpuUtilization: 50
+
+# Non-secret config rendered into the ConfigMap. In-cluster URLs are Service DNS.
+config:
+  XQDRANT_URL: "http://xqdrant:6333"
+  EVAL_ENGINE_URL: "http://eval-engine:8000"
+  FLIGHT_RECORDER_URL: "http://flight-recorder:8001"
+  BLOB_STORAGE_ENDPOINT: "http://minio:9000"
+  EVAL_ENGINE_INTERNAL_URL: "http://eval-engine:8000"
+  FLIGHT_RECORDER_INTERNAL_URL: "http://flight-recorder:8001"
+  CF_AI_MODEL_MAIN: "@cf/meta/llama-3.1-8b-instruct-fp8-fast"
+  CF_AI_MODEL_SAFETY: "@cf/meta/llama-guard-3-8b"
+  CF_AI_MODEL_EMBED: "@cf/baai/bge-base-en-v1.5"
+  CF_VECTORIZE_INDEX: "sentinel-embeddings"
+  BLOB_STORAGE_BUCKET: "sentinel-cassettes"
+  BLOB_STORAGE_ACCESS_KEY: "minio"
+  BLOB_STORAGE_USE_SSL: "false"
+  XQDRANT_INCIDENTS_COLLECTION: "incidents"
+  XQDRANT_RUNBOOKS_COLLECTION: "runbooks"
+  ATLASSIAN_SITE: "https://your-site.atlassian.net"
+  ATLASSIAN_EMAIL: "you@example.com"
+  ATLASSIAN_JSM_SERVICE_DESK_ID: "1"
+  ATLASSIAN_JIRA_PROJECT_KEY: "AO"
+  ATLASSIAN_DUPLICATE_LINK_TYPE: "Duplicate"
+  EVAL_CONFIDENCE_THRESHOLD: "0.70"
+  VECTOR_SIMILARITY_THRESHOLD: "0.75"
+  RUNBOOK_SIMILARITY_THRESHOLD: "0.60"
+  FLIGHT_MODE: "record"
+  LANGFUSE_HOST: "https://langfuse.example.com"
+  LANGFUSE_HOST_INTERNAL: "http://langfuse:3000"
+  FORGE_REMOTE_URL: "http://atlassian-remote:8080"
+  DASHBOARD_URL: "http://dashboard:3001"
+  OTEL_SEMCONV_STABILITY_OPT_IN: "gen_ai_latest_experimental"
+  LOG_LEVEL: "INFO"
+
+# Secrets rendered into the Secret. OVERRIDE these via a private values file
+# (`-f my-secrets.yaml`) or `--set`; never commit real values here.
+secrets:
+  CLOUDFLARE_ACCOUNT_ID: ""
+  CLOUDFLARE_API_TOKEN: ""
+  CF_AI_ACCOUNT_ID: ""
+  CF_AI_API_TOKEN: ""
+  CF_D1_DATABASE_ID: ""
+  BLOB_STORAGE_SECRET_KEY: "miniosecret"
+  ATLASSIAN_API_TOKEN: ""
+  LANGFUSE_PUBLIC_KEY: ""
+  LANGFUSE_SECRET_KEY: ""
+  AUDIT_HMAC_KEY: ""
+  FORGE_REMOTE_SECRET: ""

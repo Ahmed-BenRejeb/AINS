@@ -1,0 +1,94 @@
+# MinIO — S3-compatible blob storage for flight-recorder cassettes. Internal-only.
+# Root user/pass come from the ConfigMap (access key) + Secret (secret key), the
+# same values the services use for BLOB_STORAGE_ACCESS_KEY / BLOB_STORAGE_SECRET_KEY.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: sentinel
+  labels: { app: minio }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: minio }
+  template:
+    metadata:
+      labels: { app: minio }
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                configMapKeyRef: { name: sentinel-config, key: BLOB_STORAGE_ACCESS_KEY }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: sentinel-secrets, key: BLOB_STORAGE_SECRET_KEY }
+          ports:
+            - { containerPort: 9000, name: api }
+            - { containerPort: 9001, name: console }
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet: { path: /minio/health/ready, port: 9000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: "1", memory: 512Mi }
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: sentinel
+  labels: { app: minio }
+spec:
+  selector: { app: minio }
+  ports:
+    - { name: api, port: 9000, targetPort: 9000 }
+    - { name: console, port: 9001, targetPort: 9001 }
+---
+# Best-effort one-shot bucket creation (idempotent). Not on the critical path for
+# the /evaluate KEDA demo (that uses inline records), but lets the full record
+# loop work. Retries until MinIO is ready.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-setup
+  namespace: sentinel
+  labels: { app: minio-setup }
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels: { app: minio-setup }
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+          env:
+            - name: ACCESS_KEY
+              valueFrom:
+                configMapKeyRef: { name: sentinel-config, key: BLOB_STORAGE_ACCESS_KEY }
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: sentinel-secrets, key: BLOB_STORAGE_SECRET_KEY }
+            - name: BUCKET
+              valueFrom:
+                configMapKeyRef: { name: sentinel-config, key: BLOB_STORAGE_BUCKET }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until mc alias set local http://minio:9000 "$ACCESS_KEY" "$SECRET_KEY"; do
+                echo "waiting for minio..."; sleep 3;
+              done
+              mc mb --ignore-existing "local/$BUCKET"
+              echo "bucket ready: $BUCKET"

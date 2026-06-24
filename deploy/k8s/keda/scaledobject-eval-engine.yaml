@@ -1,0 +1,32 @@
+# KEDA ScaledObject — autoscale the eval engine on CPU utilization.
+#
+# Requires KEDA installed (see deploy/README.md) and the metrics-server addon
+# (`minikube addons enable metrics-server`). KEDA manages an HPA under the hood;
+# because each pod requests only 100m CPU, even moderate load pushes utilization
+# well past the 50% target and triggers scale-out — then it scales back to 1 after
+# the load stops (cooldown).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: eval-engine
+  namespace: sentinel
+  labels: { app: eval-engine }
+spec:
+  scaleTargetRef:
+    name: eval-engine
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  pollingInterval: 15      # how often KEDA checks the trigger (seconds)
+  cooldownPeriod: 60       # wait before scaling back down after load drops
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+        scaleDown:
+          stabilizationWindowSeconds: 60
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "50"        # target CPU utilization (% of the pod's CPU request)

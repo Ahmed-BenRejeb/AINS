@@ -1,0 +1,51 @@
+# Eval Engine (UC1) — the autoscaling target (KEDA scales this Deployment).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eval-engine
+  namespace: sentinel
+  labels: { app: eval-engine }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: eval-engine }
+  template:
+    metadata:
+      labels: { app: eval-engine }
+    spec:
+      containers:
+        - name: eval-engine
+          image: sentinel-python:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            ["uvicorn", "api:app", "--app-dir", "packages/eval-engine", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: { name: sentinel-config }
+            - secretRef: { name: sentinel-secrets }
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            # Small CPU request so KEDA's CPU-utilization trigger reacts to load.
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eval-engine
+  namespace: sentinel
+  labels: { app: eval-engine }
+spec:
+  selector: { app: eval-engine }
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

@@ -1,0 +1,49 @@
+# Docker build-context excludes (applies to all images built from the repo root).
+# Keeps the context small and prevents secrets/heavy dirs from entering any image.
+
+# VCS + local tooling
+.git
+.github
+.agents
+skills-lock.json
+
+# Python virtualenv + caches (the image builds its own venv via uv)
+.venv
+venv
+**/__pycache__
+**/*.py[cod]
+.mypy_cache
+.ruff_cache
+.pytest_cache
+htmlcov
+.coverage
+coverage.xml
+
+# Node / Next (the dashboard image installs + builds its own)
+**/node_modules
+**/.next
+.pnpm-store
+
+# Secrets / env — NEVER bake into an image
+.env
+.env.*
+*.pem
+*.key
+*.cert
+secrets/
+
+# Logs + local data
+*.log
+logs/
+*.db
+*.sqlite*
+packages/flight-recorder/cassettes/
+scripts/output/
+
+# Not needed inside any image
+deploy/helm
+docs
+*.md
+.vscode
+.idea
+.DS_Store
