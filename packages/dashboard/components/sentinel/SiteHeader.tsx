@@ -42,8 +42,8 @@ export function SiteHeader() {
               className={cn(
                 "rounded-md px-3 py-1.5 text-sm transition-colors duration-200 ease-out",
                 isActive(item.href)
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "bg-white/[0.08] text-foreground"
+                  : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
               )}
             >
               {item.label}

@@ -12,6 +12,10 @@ import {
   HelpCircle,
   Inbox,
   Flag,
+  TrendingDown,
+  Repeat2,
+  GitBranch,
+  Scale,
   type LucideIcon,
 } from "lucide-react";
 import { Tilt } from "../motion";
@@ -49,8 +53,45 @@ const LOOP = [
     n: "03",
     name: "Act",
     Icon: Workflow,
-    body: "Verdicts land as Jira incidents on a real Atlassian Rovo agent.",
-    foot: "Atlassian Agent",
+    body: "Verdicts land as Jira incidents via a real Rovo agent deployed on Forge — the same agent whose runs the recorder tapes.",
+    foot: "Atlassian Agent · Forge",
+  },
+];
+
+const RIGOR: Array<{
+  Icon: LucideIcon;
+  stat: string;
+  label: string;
+  body: string;
+  cite: string;
+}> = [
+  {
+    Icon: TrendingDown,
+    stat: "100% → 33%",
+    label: "pass@1 vs pass^8",
+    body: "GPT-4o collapses from 61% pass@1 to 25% pass^8 on retail tasks. Sentinel surfaces this gap — k=8 is the headline metric.",
+    cite: "τ-bench · arXiv 2406.12045",
+  },
+  {
+    Icon: Repeat2,
+    stat: "2×",
+    label: "rubric passes per verdict",
+    body: "Every judgment runs twice with the rubric reversed. A verdict flip flags position bias and collapses to uncertain.",
+    cite: "AgentRewardBench · arXiv 2504.08942",
+  },
+  {
+    Icon: GitBranch,
+    stat: "per-step",
+    label: "failure attribution",
+    body: "VeriLA-style DAG attributor: not just 'the run failed' but which component caused it and with what probability.",
+    cite: "OTel GenAI trace spine",
+  },
+  {
+    Icon: Scale,
+    stat: "κ = 0.60",
+    label: "evaluator quality",
+    body: "Chance-corrected Cohen's κ against human gold labels. Raw accuracy flatters a constant-verdict judge; κ doesn't.",
+    cite: "Landis & Koch: moderate",
   },
 ];
 
@@ -138,6 +179,13 @@ export function HomeLanding({
               >
                 How it works
               </a>
+              <Link
+                href={withMock("/reliability", mock)}
+                className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-surface/60 px-5 py-2.5 text-sm font-medium text-foreground transition-colors duration-200 ease-out hover:border-accent/40 active:scale-[0.98]"
+              >
+                Reliability metrics
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
 
@@ -257,6 +305,51 @@ export function HomeLanding({
         </div>
       </section>
 
+      {/* ─────────────── Research-backed rigour ─────────────────── */}
+      <section className="mx-auto w-full max-w-[1180px] px-5 pb-24 md:px-8">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-12">
+          <div className="lg:col-span-4">
+            <h2 className="font-display text-4xl font-bold tracking-[-0.025em] sm:text-5xl">
+              Rigour
+              <br />
+              behind every
+              <br />
+              verdict.
+            </h2>
+            <p className="mt-5 max-w-sm text-[15px] leading-relaxed text-muted-foreground">
+              Three peer-reviewed benchmarks inform every evaluation pipeline.
+              Non-determinism is the central thesis, not an afterthought.
+            </p>
+            <Link
+              href={withMock("/reliability", mock)}
+              className="mt-6 inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-surface/60 px-5 py-2.5 text-sm font-medium text-foreground transition-colors duration-200 ease-out hover:border-accent/40 active:scale-[0.98]"
+            >
+              Drift + evaluator quality
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-8">
+            {RIGOR.map((r, i) => (
+              <div
+                key={r.label}
+                className="rounded-xl border border-hairline bg-surface/60 p-5 motion-safe:animate-fade-up"
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
+                <r.Icon className="h-5 w-5 text-accent" aria-hidden />
+                <div className="mt-3 font-mono text-2xl font-semibold tracking-tight text-foreground">
+                  {r.stat}
+                </div>
+                <div className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+                  {r.label}
+                </div>
+                <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{r.body}</p>
+                <div className="mt-3 font-mono text-[11px] text-accent/60">{r.cite}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ───────────────────── Recent verdicts ───────────────────── */}
       <section className="mx-auto w-full max-w-[1180px] px-5 pb-28 md:px-8">
         <div className="mb-6 flex items-end justify-between">
@@ -326,6 +419,9 @@ export function HomeLanding({
           <div className="flex items-center gap-5 text-sm text-muted-foreground">
             <Link href={withMock("/runs", mock)} className="hover:text-foreground">
               Runs
+            </Link>
+            <Link href={withMock("/reliability", mock)} className="hover:text-foreground">
+              Reliability
             </Link>
             <a href={LANGFUSE_URL} target="_blank" rel="noreferrer" className="hover:text-foreground">
               Langfuse
