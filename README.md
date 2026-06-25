@@ -108,6 +108,10 @@ The full stack runs on an Azure VM behind a Cloudflare Tunnel; the Forge app is 
 
 <sub>**The loop closes in Jira** — every evaluated run is filed back as an auditable AO incident with its verdict, so reliability lives where the team already works.</sub>
 
+<img src="docs/screenshots/langfuse-tracing.png" alt="Langfuse tracing view of the AINS project: rca-generation, llm-judge, and xqdrant-search spans with inputs, outputs, and latency" width="92%">
+
+<sub>**Full LLM observability in Langfuse** — every RCA generation, judge call, and vector search is a traced span with inputs, outputs, and latency, so any run can be inspected end to end.</sub>
+
 </div>
 
 ---
